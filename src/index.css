@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------
+   Design tokens — bảng màu "Hawaii Summer" của LiseaMade.
+   Tailwind v4: khai báo trong @theme để sinh utility (bg-lagoon-600, ...).
+   --------------------------------------------------------------- */
+@theme {
+  --color-lagoon-50: #eefdfb;
+  --color-lagoon-100: #d3f8f3;
+  --color-lagoon-200: #a9f0e8;
+  --color-lagoon-300: #74e2d9;
+  --color-lagoon-400: #3ecbc4;
+  --color-lagoon-500: #21afa9;
+  --color-lagoon-600: #178c89;
+  --color-lagoon-700: #15706f;
+  --color-lagoon-800: #15595a;
+  --color-lagoon-900: #164a4b;
+
+  --color-coral-50: #fff3f1;
+  --color-coral-100: #ffe4df;
+  --color-coral-200: #ffcdc5;
+  --color-coral-300: #ffa89b;
+  --color-coral-400: #ff7d6a;
+  --color-coral-500: #f95942;
+  --color-coral-600: #e63d24;
+  --color-coral-700: #c12e1a;
+  --color-coral-800: #9f291a;
+  --color-coral-900: #83271c;
+
+  --color-sand-50: #fdfaf3;
+  --color-sand-100: #faf2e0;
+  --color-sand-200: #f3e3c2;
+  --color-sand-300: #eacd97;
+  --color-sand-400: #dfb06a;
+  --color-sand-500: #d69848;
+  --color-sand-600: #c87f3c;
+  --color-sand-700: #a66433;
+  --color-sand-800: #85512f;
+  --color-sand-900: #6c4329;
+
+  --color-ink-500: #6b7280;
+  --color-ink-700: #374151;
+  --color-ink-900: #111827;
+
+  --font-display: "Fraunces", "Georgia", serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  --radius-card: 1rem;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-sand-50 text-ink-900 font-sans antialiased;
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-lagoon-600;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@utility container-page {
+  @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
+}
+
+/* Nền gradient nhiệt đới dùng cho hero + banner. */
+@utility bg-tropic {
+  background-image: linear-gradient(135deg, var(--color-lagoon-50) 0%, var(--color-sand-100) 55%, var(--color-coral-50) 100%);
+}
