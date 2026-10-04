@@ -1,19 +1,19 @@
 import { Link } from "react-router-dom";
-import type { CategoryId } from "@/types";
+import type { CatalogQuery } from "@/types";
 import { CATEGORIES } from "@/data/categories";
 import { PRODUCTS } from "@/data/products";
-import { DEFAULT_QUERY, countByCategory, toSearchParams } from "@/lib/catalog";
+import { countByCategory, toSearchParams } from "@/lib/catalog";
 
 interface FilterChipsProps {
   /** Nhóm hàng đang chọn; chip đang chọn hiển thị dạng plain text thay vì link. */
-  active: CategoryId | "all";
+  query: CatalogQuery;
 }
 
 /**
  * Chọn nhóm hàng: mỗi nhóm là một link `/san-pham?nhom=...` để URL chia sẻ được.
  * Chip đang chọn hiển thị bằng <span> nên click không re-navigate không cần thiết.
  */
-export function FilterChips({ active }: FilterChipsProps) {
+export function FilterChips({ query }: FilterChipsProps) {
   return (
     <div
       role="group"
@@ -22,14 +22,14 @@ export function FilterChips({ active }: FilterChipsProps) {
     >
       {CATEGORIES.map((category) => {
         const count = countByCategory(PRODUCTS, category.id);
-        const isActive = category.id === active;
+        const isActive = category.id === query.category;
         const label = `${category.name} (${count})`;
 
         if (isActive) {
           return (
             <span
               key={category.id}
-              className="rounded-full bg-lagoon-100 px-3 py-1 text-sm font-semibold text-lagoon-800"
+              className="py-1 text-sm font-medium text-ink-900 border-b-1 border-ink-900/40"
             >
               {label}
             </span>
@@ -40,19 +40,19 @@ export function FilterChips({ active }: FilterChipsProps) {
           return (
             <span
               key={category.id}
-              className="rounded-full px-3 py-1 text-sm font-medium text-ink-500"
+              className="py-1 text-sm font-medium text-ink-500"
             >
               {label}
             </span>
           );
         }
 
-        const params = toSearchParams({ ...DEFAULT_QUERY, category: category.id });
+        const params = toSearchParams({ ...query, category: category.id });
         return (
           <Link
             key={category.id}
             to={`/san-pham?${params.toString()}`}
-            className="rounded-full px-3 py-1 text-sm font-semibold text-lagoon-700 hover:bg-lagoon-100"
+            className="underline-reveal py-1 text-sm font-medium text-ink-700 hover:text-lagoon-700"
           >
             {label}
           </Link>

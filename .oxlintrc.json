@@ -1,12 +1,38 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript"],
+  "plugins": [
+    "react",
+    "typescript",
+    "jsx-a11y",
+    "react-perf"
+  ],
   "env": {
     "browser": true,
     "es2024": true
   },
   "categories": {
-    "correctness": "error"
+    "correctness": "error",
+    "perf": "error"
   },
-  "ignorePatterns": ["dist/**", "node_modules/**", "coverage/**"]
+  "ignorePatterns": [
+    "dist/**",
+    "node_modules/**",
+    "coverage/**"
+  ],
+  "rules": {
+    "jsx-no-new-function-as-prop": "off",
+    "jsx-no-jsx-as-prop": "off",
+    "jsx-no-new-object-as-prop": "off",
+    "prefer-tag-over-role": "off"
+  },
+  "overrides": [
+    {
+      "files": [
+        "**/*.test.tsx"
+      ],
+      "rules": {
+        "react/globals": "off"
+      }
+    }
+  ]
 }

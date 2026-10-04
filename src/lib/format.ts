@@ -10,8 +10,10 @@ export function formatVnd(amount: number): string {
 }
 
 /** 320000 -> "320.000" (dùng cho input/ngắn gọn, không kèm ký hiệu tiền tệ). */
+const plain = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 });
+
 export function formatNumber(amount: number): string {
-  return new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(amount);
+  return plain.format(amount);
 }
 
 /** Phần trăm giảm giá làm tròn, 0 nếu không giảm. */
@@ -21,26 +23,34 @@ export function discountPercent(price: number, compareAtPrice?: number): number 
 }
 
 /** Rút gọn số lớn: 187800 -> "187,8K". */
+const compact = new Intl.NumberFormat("vi-VN", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
 export function formatCompact(value: number): string {
-  return new Intl.NumberFormat("vi-VN", {
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(value);
+  return compact.format(value);
 }
+
+const timeFormatter = new Intl.DateTimeFormat("vi-VN", {
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+  timeZone: "Asia/Bangkok",
+});
+
+const dateFormatter = new Intl.DateTimeFormat("vi-VN", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  timeZone: "Asia/Bangkok",
+});
 
 /** "2025-03-14T09:30:00.000Z" -> "09:30 14/03/2025" */
 export function formatDateTime(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
-  const time = new Intl.DateTimeFormat("vi-VN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(d);
-  const date = new Intl.DateTimeFormat("vi-VN", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(d);
+  const time = timeFormatter.format(d);
+  const date = dateFormatter.format(d);
   return `${time} ${date}`;
 }

@@ -13,7 +13,6 @@ export const SITE = {
   tiktokUrl: "https://www.tiktok.com/@liseahawaiisummer",
   instagramHandle: "Liseahawaii.Made",
   instagramUrl: "https://www.instagram.com/Liseahawaii.Made/",
-  facebookHandle: "Liseahawaii Made",
   /** Hotline/Zalo in trong bio TikTok: "☎️:0385.8989.52" */
   hotline: "0385.8989.52",
   hotlineDisplay: "0385.8989.52",

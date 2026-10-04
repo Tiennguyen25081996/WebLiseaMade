@@ -118,35 +118,34 @@ export function CartProvider({ children }: { children: ReactNode }) {
       },
       removeItem: (productId, variantId) => {
         const key = lineKey(productId, variantId);
-        setState((prev) => ({
-          ...prev,
-          rawLines: prev.rawLines.filter(
-            (l) => lineKey(l.productId, l.variantId) !== key,
-          ),
-        }));
+        setState((prev) => {
+          // Bailout: key khong exist -> same state object, subtree khong re-render.
+          if (!prev.rawLines.some((l) => lineKey(l.productId, l.variantId) === key)) {
+            return prev;
+          }
+          return {
+            ...prev,
+            rawLines: prev.rawLines.filter(
+              (l) => lineKey(l.productId, l.variantId) !== key,
+            ),
+          };
+        });
       },
       setQuantity: (productId, variantId, quantity) => {
         const key = lineKey(productId, variantId);
         const q = clampQuantity(quantity);
         setState((prev) => {
+          const exists = prev.rawLines.some(
+            (l) => lineKey(l.productId, l.variantId) === key,
+          );
+          // "set" khong create line moi (P3-1): them add() moi them them them.
+          if (!exists) return prev;
           if (q === 0) {
             return {
               ...prev,
               rawLines: prev.rawLines.filter(
                 (l) => lineKey(l.productId, l.variantId) !== key,
               ),
-            };
-          }
-          const exists = prev.rawLines.some(
-            (l) => lineKey(l.productId, l.variantId) === key,
-          );
-          if (!exists) {
-            return {
-              ...prev,
-              rawLines: [
-                ...prev.rawLines,
-                { productId, variantId, quantity: q },
-              ],
             };
           }
           return {
@@ -161,7 +160,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
       },
       clear: () => {
         setState((prev) =>
-          prev.rawLines.length === 0 ? prev : { ...prev, rawLines: [] },
+          prev.rawLines.length === 0 && prev.dismissedIds.length === 0
+            ? prev
+            // N-2: empty cart moi reset dismissed notice moi, ne khong supress
+            // the notice again khi user re-add a line that becomes dropped.
+            : { ...prev, rawLines: [], dismissedIds: [] },
         );
       },
       droppedLineIds: visibleDropped,
@@ -169,7 +172,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
         setState((prev) =>
           visibleDropped.every((id) => prev.dismissedIds.includes(id))
             ? prev
-            : { ...prev, dismissedIds: visibleDropped },
+            : {
+                ...prev,
+                dismissedIds: Array.from(
+                  new Set([...prev.dismissedIds, ...visibleDropped]),
+                ),
+              },
         );
       },
       rawLines: state.rawLines,

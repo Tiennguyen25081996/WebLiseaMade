@@ -1,4 +1,4 @@
-import type { CartLine, CartLineDetailed, Product, Totals } from "@/types";
+import type { CartLine, CartLineDetailed, Product, ProductVariant, Totals } from "@/types";
 
 /**
  * Quy tắc tính tiền — MỘT nguồn sự thật duy nhất cho giỏ hàng và thanh toán.
@@ -25,9 +25,16 @@ export function hydrateLines(
   const lines: CartLineDetailed[] = [];
   const droppedLineIds: string[] = [];
 
+  const productById = new Map(products.map((p) => [p.id, p]));
+  const variantById = new Map<string, ProductVariant>(
+    products.flatMap(
+      (p) => p.variants.map((v) => [v.id, v] as [string, ProductVariant]),
+    ),
+  );
+
   for (const raw of rawLines) {
-    const product = products.find((p) => p.id === raw.productId);
-    const variant = product?.variants.find((v) => v.id === raw.variantId);
+    const product = productById.get(raw.productId);
+    const variant = variantById.get(raw.variantId);
 
     // Sản phẩm/biến thể đã bị xoá khỏi catalog -> loại khỏi giỏ và báo cho khách.
     if (!product || !variant) {

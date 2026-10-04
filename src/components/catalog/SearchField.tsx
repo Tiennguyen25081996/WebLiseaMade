@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { SearchIcon } from "@/components/ui/icons";
 
 interface SearchFieldProps {
@@ -10,10 +11,11 @@ interface SearchFieldProps {
  * onQueryChange, rồi useCatalogQuery ghi từ khoá lên URL để cập nhật kết quả.
  */
 export function SearchField({ onQueryChange }: SearchFieldProps) {
+  const [lastValue, setLastValue] = useState("");
   return (
-    <div className="rounded-xl bg-white p-3 ring-1 ring-sand-200">
+    <div className="rounded-hair border-1 border-sand-200 bg-sand-100 px-4 py-4">
       <div className="flex items-center gap-2">
-        <SearchIcon className="h-5 w-5 text-lagoon-700" aria-hidden focusable={false} />
+        <SearchIcon className="h-5 w-5 text-ink-700" aria-hidden focusable={false} />
         <label htmlFor="tim-kiem" className="text-sm font-semibold text-ink-700">
           Tìm kiếm:
         </label>
@@ -24,9 +26,12 @@ export function SearchField({ onQueryChange }: SearchFieldProps) {
         name="tim"
         onChange={(event) => {
           const input = event.target as HTMLInputElement;
-          onQueryChange(input.value);
+          if (input.value !== lastValue) {
+            setLastValue(input.value);
+            onQueryChange(input.value);
+          }
         }}
-        className="block w-full rounded-lg px-3 py-2 text-sm text-ink-900 ring-1 ring-sand-300"
+        className="block w-full rounded-hair px-3 py-2 text-sm text-ink-900 border-1 border-sand-300 focus:border-ink-900/50"
       />
     </div>
   );

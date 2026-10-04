@@ -1,51 +1,141 @@
 @import "tailwindcss";
 
-/* ---------------------------------------------------------------
-   Design tokens — bảng màu "Hawaii Summer" của LiseaMade.
-   Tailwind v4: khai báo trong @theme để sinh utility (bg-lagoon-600, ...).
-   --------------------------------------------------------------- */
+/* ===============================================================
+   LiseaMade — Design system "Editorial Hawaii"
+   ---------------------------------------------------------------
+   Art direction: luxury editorial, không template.
+   Palette restrained: warm ivory/sand (neutral) + warm charcoal (ink)
+   + ONE accent deep-green (lagoon) + ONE accent muted brick (coral).
+   Luxury cò sach them gold. Accent cò sach them remove, website cò sach
+   them look luxury (neutral + typography + spacing carry the brand).
+
+   Typography: 1 display serif (Fraunces) + 1 sans (Inter) — max.
+   Motion: slow, cinematic, masked reveals. No bounce, no float.
+   prefers-reduced-motion: handled ở block @media ở luoi.
+   =============================================================== */
+
 @theme {
-  --color-lagoon-50: #eefdfb;
-  --color-lagoon-100: #d3f8f3;
-  --color-lagoon-200: #a9f0e8;
-  --color-lagoon-300: #74e2d9;
-  --color-lagoon-400: #3ecbc4;
-  --color-lagoon-500: #21afa9;
-  --color-lagoon-600: #178c89;
-  --color-lagoon-700: #15706f;
-  --color-lagoon-800: #15595a;
-  --color-lagoon-900: #164a4b;
+  /* ---------- Neutral: warm ivory + warm stone (sand) ---------- */
+  --color-sand-50: #fbf8f1;
+  --color-sand-100: #f6f2e9;
+  --color-sand-200: #ece6da;
+  --color-sand-300: #ddd4c3;
+  --color-sand-400: #c8bfa9;
+  --color-sand-500: #b0a48c;
+  --color-sand-600: #948669;
+  --color-sand-700: #756951;
+  --color-sand-800: #574d3c;
+  --color-sand-900: #3e3629;
 
-  --color-coral-50: #fff3f1;
-  --color-coral-100: #ffe4df;
-  --color-coral-200: #ffcdc5;
-  --color-coral-300: #ffa89b;
-  --color-coral-400: #ff7d6a;
-  --color-coral-500: #f95942;
-  --color-coral-600: #e63d24;
-  --color-coral-700: #c12e1a;
-  --color-coral-800: #9f291a;
-  --color-coral-900: #83271c;
+  /* ---------- Charcoal (ink) — text + hairline ---------- */
+  --color-ink-300: #b8b4ac;
+  --color-ink-500: #6f6b65;
+  --color-ink-700: #3d3a36;
+  --color-ink-900: #1c1a18;
 
-  --color-sand-50: #fdfaf3;
-  --color-sand-100: #faf2e0;
-  --color-sand-200: #f3e3c2;
-  --color-sand-300: #eacd97;
-  --color-sand-400: #dfb06a;
-  --color-sand-500: #d69848;
-  --color-sand-600: #c87f3c;
-  --color-sand-700: #a66433;
-  --color-sand-800: #85512f;
-  --color-sand-900: #6c4329;
+  /* ---------- Accent 1: deep muted green (lagoon) ---------- */
+  --color-lagoon-50: #f2f6f3;
+  --color-lagoon-100: #e7ede8;
+  --color-lagoon-200: #d3ded7;
+  --color-lagoon-300: #b3c4b9;
+  --color-lagoon-400: #8da49a;
+  --color-lagoon-500: #627a71;
+  --color-lagoon-600: #41605a;
+  --color-lagoon-700: #314945;
+  --color-lagoon-800: #243936;
+  --color-lagoon-900: #1a2a28;
 
-  --color-ink-500: #6b7280;
-  --color-ink-700: #374151;
-  --color-ink-900: #111827;
+  /* ---------- Accent 2: muted brick (coral) — price/status ---------- */
+  --color-coral-50: #faf5f2;
+  --color-coral-100: #f4eae4;
+  --color-coral-200: #e9d8cd;
+  --color-coral-300: #d6b9aa;
+  --color-coral-400: #c19c8b;
+  --color-coral-500: #ac7f6d;
+  --color-coral-600: #946452;
+  --color-coral-700: #7c4c3e;
+  --color-coral-800: #61392f;
+  --color-coral-900: #4a2c25;
 
-  --font-display: "Fraunces", "Georgia", serif;
+  /* ---------- Typography scale: editorial ---------- */
+  --font-display: "Fraunces", "Cormorant Garamond", "Georgia", serif;
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
 
-  --radius-card: 1rem;
+  --text-eyebrow: 0.6875rem;
+  --text-eyebrow--line-height: 1.5;
+  --text-eyebrow--letter-spacing: 0.22em;
+
+  --text-display-sm: 1.375rem;
+  --text-display-sm--line-height: 1.15;
+  --text-display-sm--letter-spacing: -0.01em;
+
+  --text-display-md: 2rem;
+  --text-display-md--line-height: 1.08;
+  --text-display-md--letter-spacing: -0.015em;
+
+  --text-display-lg: 2.75rem;
+  --text-display-lg--line-height: 1.02;
+  --text-display-lg--letter-spacing: -0.02em;
+
+  --text-display-xl: 4rem;
+  --text-display-xl--line-height: 0.95;
+  --text-display-xl--letter-spacing: -0.03em;
+
+  /* ---------- Radii: refined, không pill ---------- */
+  --radius-hair: 2px;
+  --radius-card: 4px;
+
+  /* ---------- Easing: cinematic ---------- */
+  --ease-editorial: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-couture: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ---------- Motion language ---------- */
+  --animate-reveal-up: reveal-up 900ms var(--ease-editorial) both;
+  --animate-reveal-slow: reveal-up 1300ms var(--ease-editorial) both;
+  --animate-image-enter: image-enter 1800ms var(--ease-couture) both;
+  --animate-mask-wipe: mask-wipe 1200ms var(--ease-couture) both;
+  --animate-cue-drift: cue-drift 3200ms ease-in-out infinite;
+
+  @keyframes reveal-up {
+    from {
+      opacity: 0;
+      transform: translateY(18px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes image-enter {
+    from {
+      transform: scale(1.06);
+    }
+    to {
+      transform: scale(1);
+    }
+  }
+
+  @keyframes mask-wipe {
+    from {
+      clip-path: inset(0 0 100% 0);
+    }
+    to {
+      clip-path: inset(0 0 0 0);
+    }
+  }
+
+  @keyframes cue-drift {
+    0%,
+    100% {
+      transform: translateY(0);
+      opacity: 0.3;
+    }
+    50% {
+      transform: translateY(7px);
+      opacity: 0.65;
+    }
+  }
 }
 
 @layer base {
@@ -57,8 +147,23 @@
     @apply bg-sand-50 text-ink-900 font-sans antialiased;
   }
 
+  /* Display serif carry headline; optical sizing via Fraunces axes. */
+  h1,
+  h2 {
+    @apply font-display font-normal text-display-md text-ink-900;
+  }
+
+  ::selection {
+    @apply bg-lagoon-200 text-ink-900;
+  }
+
+  /* Focus: refined hairline, không blob. */
   :focus-visible {
-    @apply outline-2 outline-offset-2 outline-lagoon-600;
+    @apply outline-1 outline-offset-4 outline-lagoon-600;
+  }
+
+  input {
+    @apply rounded-hair ring-1 ring-sand-300;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -73,11 +178,90 @@
   }
 }
 
+/* ---------------- Utilities (design language) ---------------- */
+
 @utility container-page {
-  @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
+  @apply mx-auto w-full max-w-7xl px-4 sm:px-8 lg:px-10;
 }
 
-/* Nền gradient nhiệt đới dùng cho hero + banner. */
+/* Full-bleed editorial band — muted, không gradient showy. */
 @utility bg-tropic {
-  background-image: linear-gradient(135deg, var(--color-lagoon-50) 0%, var(--color-sand-100) 55%, var(--color-coral-50) 100%);
+  background-image: linear-gradient(
+    135deg,
+    var(--color-sand-100) 0%,
+    var(--color-lagoon-100) 55%,
+    var(--color-sand-200) 100%
+  );
+}
+
+/* Hairline rule — thay ring/shadow. */
+@utility hairline {
+  @apply border-1 border-sand-300;
+}
+
+@utility hairline-strong {
+  @apply border-1 border-ink-900/20;
+}
+
+/* Eyebrow label: small caps micro-type, wide tracking. */
+@utility eyebrow-label {
+  @apply text-eyebrow uppercase text-ink-500;
+}
+
+/* Underline reveal — luxury link language (không pill link). */
+@utility underline-reveal {
+  @apply relative inline-block;
+  &::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background-color: currentColor;
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform 700ms var(--ease-editorial);
+  }
+  &:hover::after,
+  &:focus-visible::after {
+    transform: scaleX(1);
+  }
+}
+
+/* Image hover zoom — slow, cinematic (1.04). */
+@utility hover-zoom {
+  @apply relative block overflow-hidden;
+  & > img,
+  & > div {
+    transition: transform 1600ms var(--ease-couture);
+  }
+  &:hover > img,
+  &:hover > div {
+    transform: scale(1.04);
+  }
+}
+
+/* Scroll cue: thin drifting rule at hero bottom. */
+@utility scroll-cue {
+  @apply relative mx-auto h-10 w-px bg-ink-300;
+  animation: var(--animate-cue-drift);
+}
+
+/* Masked text reveal for editorial headline (wipe down). */
+@utility mask-wipe {
+  animation: var(--animate-mask-wipe);
+}
+
+/* Stagger for the featured grid — explicit classes so Tailwind can scan them. */
+@utility delay-0 {
+  animation-delay: 0ms;
+}
+
+@utility delay-150 {
+  animation-delay: 150ms;
+}
+
+@utility delay-300 {
+  animation-delay: 300ms;
 }

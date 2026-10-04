@@ -1,25 +1,18 @@
-import { Outlet, useLocation } from "react-router-dom";
-import { useEffect } from "react";
+import { Outlet } from "react-router-dom";
 import { Footer } from "./Footer";
 import { Header } from "./Header";
 
 export function Layout() {
-  const { pathname } = useLocation();
-
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, [pathname]);
-
   return (
     <div className="flex min-h-screen flex-col bg-sand-50">
       <a
         href="#noi-dung"
-        className="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-50 focus:rounded-full focus:bg-lagoon-700 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:rounded-hair focus:bg-ink-900 focus:px-4 focus:py-2 focus:text-xs focus:tracking-[0.08em] focus:text-sand-50"
       >
         Bỏ qua tới nội dung chính
       </a>
       <Header />
-      <main id="noi-dung" className="flex-1">
+      <main id="noi-dung" className="flex-1 animate-reveal-up">
         <Outlet />
       </main>
       <Footer />

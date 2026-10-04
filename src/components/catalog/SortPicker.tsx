@@ -26,7 +26,7 @@ export function SortPicker({ query }: SortPickerProps) {
           return (
             <span
               key={option.value}
-              className="rounded-full bg-sand-100 px-3 py-1 text-sm font-semibold text-sand-900"
+              className="py-1 text-sm font-medium text-ink-900 border-b-1 border-ink-900/40"
             >
               {label}
             </span>
@@ -38,7 +38,7 @@ export function SortPicker({ query }: SortPickerProps) {
           <Link
             key={option.value}
             to={`/san-pham?${params.toString()}`}
-            className="rounded-full px-3 py-1 text-sm font-medium text-ink-700 hover:bg-sand-100"
+            className="underline-reveal py-1 text-sm font-medium text-ink-500 hover:text-ink-900"
           >
             {label}
           </Link>

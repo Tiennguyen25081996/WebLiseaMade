@@ -11,27 +11,33 @@ const NAV = [
   { to: "/lien-he", label: "Liên hệ" },
 ];
 
-/** Header dùng chung: điều hướng, tìm kiếm nhanh và badge giỏ hàng. */
+/**
+ * Header bar editorial: hairline, micro-tracking, underline reveal.
+ * Không pill nav, không fill highlight — active = ink, inactive = stone.
+ */
 export function Header() {
   const { itemCount } = useCart();
   const [open, setOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-sand-200 bg-sand-50/95 backdrop-blur">
-      <div className="container-page flex h-16 items-center gap-4">
-        <Link to="/" className="font-display text-xl font-bold text-lagoon-800">
+    <header className="sticky top-0 z-40 border-b-1 border-sand-200 bg-sand-50/92 backdrop-blur-md">
+      <div className="container-page flex h-16 items-center gap-6">
+        <Link
+          to="/"
+          className="font-display text-lg tracking-[0.01em] text-ink-900"
+        >
           {SITE.brand}
         </Link>
 
-        <nav className="hidden items-center gap-1 md:flex" aria-label="Điều hướng chính">
+        <nav className="hidden items-center gap-6 md:flex" aria-label="Điều hướng chính">
           {NAV.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               end={item.to === "/"}
               className={({ isActive }) =>
-                `rounded-full px-3 py-2 text-sm font-semibold transition-colors ${
-                  isActive ? "bg-lagoon-100 text-lagoon-800" : "text-ink-700 hover:bg-sand-100"
+                `underline-reveal text-xs font-medium tracking-[0.1em] ${
+                  isActive ? "text-ink-900" : "text-ink-500 hover:text-ink-900"
                 }`
               }
             >
@@ -40,15 +46,15 @@ export function Header() {
           ))}
         </nav>
 
-        <div className="ml-auto flex items-center gap-1">
+        <div className="ml-auto flex items-center gap-4">
           <Link
             to="/gio-hang"
-            className="relative rounded-full p-2 text-ink-700 hover:bg-sand-100"
+            className="relative p-2 text-ink-700"
             aria-label={`Giỏ hàng, ${itemCount} sản phẩm`}
           >
-            <CartIcon className="h-6 w-6" />
+            <CartIcon className="h-5 w-5" />
             {itemCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-coral-600 px-1 text-xs font-bold text-white">
+              <span className="absolute -top-0.5 -right-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-ink-900 px-1 text-2xs font-medium tabular-nums text-sand-50">
                 {itemCount > 99 ? "99+" : itemCount}
               </span>
             )}
@@ -57,12 +63,12 @@ export function Header() {
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
-            className="rounded-full p-2 text-ink-700 hover:bg-sand-100 md:hidden"
+            className="p-2 text-ink-700 md:hidden"
             aria-expanded={open}
-            aria-controls="menu-di-dong"
+            aria-controls={open ? "menu-di-dong" : undefined}
             aria-label={open ? "Đóng menu" : "Mở menu"}
           >
-            {open ? <CloseIcon className="h-6 w-6" /> : <MenuIcon className="h-6 w-6" />}
+            {open ? <CloseIcon className="h-5 w-5" /> : <MenuIcon className="h-5 w-5" />}
           </button>
         </div>
       </div>
@@ -70,10 +76,10 @@ export function Header() {
       {open && (
         <nav
           id="menu-di-dong"
-          className="border-t border-sand-200 bg-white md:hidden"
+          className="border-t-1 border-sand-200 bg-sand-50 md:hidden animate-mask-wipe"
           aria-label="Điều hướng di động"
         >
-          <ul className="container-page flex flex-col py-2">
+          <ul className="container-page flex flex-col py-3">
             {NAV.map((item) => (
               <li key={item.to}>
                 <NavLink
@@ -81,8 +87,8 @@ export function Header() {
                   end={item.to === "/"}
                   onClick={() => setOpen(false)}
                   className={({ isActive }) =>
-                    `block rounded-lg px-3 py-3 text-sm font-semibold ${
-                      isActive ? "bg-lagoon-50 text-lagoon-800" : "text-ink-700"
+                    `block py-3 text-xs font-medium tracking-[0.1em] ${
+                      isActive ? "text-ink-900" : "text-ink-500"
                     }`
                   }
                 >

@@ -13,13 +13,14 @@ interface ProductImageProps {
   priority?: boolean;
 }
 
+/* Duotone muted editorial — art direction calm, không saturated. */
 const PALETTES = [
-  ["#d3f8f3", "#74e2d9", "#15706f"],
-  ["#ffe4df", "#ffa89b", "#c12e1a"],
-  ["#faf2e0", "#eacd97", "#a66433"],
-  ["#eefdfb", "#a9f0e8", "#178c89"],
-  ["#fff3f1", "#ffcdc5", "#9f291a"],
-  ["#fdfaf3", "#f3e3c2", "#85512f"],
+  ["#ece6da", "#c8bfa9", "#574d3c"],
+  ["#e7ede8", "#c3d2c8", "#314945"],
+  ["#f4eae4", "#e0cfc4", "#61392f"],
+  ["#f1f0ec", "#d9d6ce", "#3d3a36"],
+  ["#eae7e0", "#cfc9bc", "#3e3629"],
+  ["#e9eee9", "#ccd6cc", "#243936"],
 ] as const;
 
 /** Băm chuỗi thành số ổn định để placeholder không đổi màu giữa các lần render. */
@@ -33,7 +34,7 @@ function hashString(input: string): number {
 
 /**
  * Ảnh sản phẩm. Khi shop chưa cung cấp ảnh thật, component vẽ placeholder
- * gradient kèm nhãn "Ảnh minh hoạ" — KHÔNG giả vờ đó là ảnh thật của shop.
+ * duotone muted kèm nhãn "Ảnh minh hoạ" — KHÔNG giả vờ đó là ảnh thật của shop.
  * Nếu ảnh thật lỗi tải, tự động rơi về placeholder.
  */
 export function ProductImage({
@@ -71,13 +72,13 @@ export function ProductImage({
       aria-label={`${alt} (ảnh minh hoạ)`}
     >
       <span
-        className="font-display text-5xl font-bold opacity-60 select-none"
+        className="font-display text-6xl font-normal opacity-30 select-none"
         style={{ color: ink }}
       >
         {initial}
       </span>
       {showPlaceholderNote && (
-        <span className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-white/85 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-ink-700 uppercase">
+        <span className="absolute bottom-3 left-3 inline-block border-1 border-ink-900/15 rounded-hair px-2 py-1 text-eyebrow uppercase tracking-[0.16em] text-ink-700">
           Ảnh minh hoạ
         </span>
       )}

@@ -3,10 +3,10 @@ import type { ReactNode } from "react";
 export type BadgeTone = "lagoon" | "coral" | "sand" | "neutral";
 
 const TONES: Record<BadgeTone, string> = {
-  lagoon: "bg-lagoon-100 text-lagoon-800 ring-lagoon-200",
-  coral: "bg-coral-100 text-coral-800 ring-coral-200",
-  sand: "bg-sand-200 text-sand-900 ring-sand-300",
-  neutral: "bg-white text-ink-700 ring-sand-200",
+  lagoon: "border-lagoon-300 text-lagoon-700",
+  coral: "border-coral-300 text-coral-700",
+  sand: "border-sand-300 text-sand-800",
+  neutral: "border-ink-900/20 text-ink-700",
 };
 
 interface BadgeProps {
@@ -15,10 +15,11 @@ interface BadgeProps {
   className?: string;
 }
 
+/** Badge luxury: chip hairline + micro-caps eyebrow, không pill không fill. */
 export function Badge({ tone = "lagoon", children, className = "" }: BadgeProps) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${TONES[tone]} ${className}`}
+      className={`inline-flex items-center rounded-hair border-1 px-2 py-1 text-eyebrow uppercase tracking-[0.14em] ${TONES[tone]} ${className}`}
     >
       {children}
     </span>

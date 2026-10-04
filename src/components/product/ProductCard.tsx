@@ -12,56 +12,59 @@ interface ProductCardProps {
   priority?: boolean;
 }
 
-/** Thẻ sản phẩm dùng chung cho trang chủ và trang danh mục. */
+/**
+ * Thẻ sản phẩm editorial: chrome minimal, hairline, zoom cham slow 1.04.
+ * Typography carry the card: ten san pham cò sach them display serif.
+ */
 export function ProductCard({ product, priority = false }: ProductCardProps) {
   const href = `/san-pham/${product.id}`;
   const totalStock = product.variants.filter((v) => v.inStock).length;
 
   return (
-    <article className="group flex h-full flex-col overflow-hidden rounded-card bg-white ring-1 ring-sand-200 transition-shadow hover:shadow-lg hover:shadow-sand-300/40">
-      <Link to={href} className="relative block aspect-4/5 overflow-hidden" tabIndex={-1}>
+    <article className="group flex h-full flex-col overflow-hidden rounded-hair bg-sand-100">
+      <Link to={href} className="hover-zoom aspect-4/5" tabIndex={-1}>
         <ProductImage
           src={product.images[0]}
           alt={product.name}
           seed={product.id}
           priority={priority}
-          className="transition-transform duration-300 group-hover:scale-105"
+          className="animate-image-enter"
         />
         {product.badges.length > 0 && (
-          <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
+          <div className="absolute top-4 left-4 flex flex-wrap gap-2">
             {product.badges.slice(0, 2).map((b) => (
-              <Badge key={b} tone="coral">
+              <Badge key={b} tone="neutral">
                 {b}
               </Badge>
             ))}
           </div>
         )}
         {totalStock === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center bg-white/70">
-            <span className="rounded-full bg-ink-900/85 px-3 py-1 text-xs font-bold text-white">
+          <div className="absolute inset-0 flex items-center justify-center bg-sand-50/75">
+            <span className="border-1 border-ink-900/20 rounded-hair px-3 py-1 text-eyebrow uppercase tracking-[0.16em] text-ink-900">
               Tạm hết hàng
             </span>
           </div>
         )}
       </Link>
 
-      <div className="flex flex-1 flex-col gap-2 p-4">
-        <p className="text-xs font-semibold tracking-wide text-lagoon-700 uppercase">
-          {getCategoryName(product.category)}
-        </p>
+      <div className="flex flex-1 flex-col gap-3 px-5 py-4">
+        <p className="eyebrow-label">{getCategoryName(product.category)}</p>
 
-        <h3 className="font-semibold text-ink-900">
-          <Link to={href} className="hover:text-lagoon-700">
+        <h3 className="font-display text-display-sm font-normal text-ink-900">
+          <Link to={href} className="underline-reveal hover:text-lagoon-700">
             {product.name}
           </Link>
         </h3>
 
-        <p className="line-clamp-2 text-sm text-ink-500">{product.shortDescription}</p>
+        <p className="line-clamp-2 text-sm leading-relaxed text-ink-500">
+          {product.shortDescription}
+        </p>
 
         <Rating value={product.rating} count={product.reviewCount} />
 
-        <div className="mt-auto pt-2">
-          <Price price={product.price} compareAtPrice={product.compareAtPrice} />
+        <div className="mt-auto pt-3">
+          <Price price={product.price} compareAtPrice={product.compareAtPrice} size="sm" />
         </div>
       </div>
     </article>
