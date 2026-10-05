@@ -73,6 +73,8 @@ const VALID_ORDER: PlacedOrder = {
     phone: "0385898952",
     email: "",
     address: "123 Duong Test, Ha Noi",
+    province: "Ha Noi",
+    district: "Cau Giay",
     note: "",
     paymentMethod: "cod",
   },
@@ -121,6 +123,8 @@ describe("validateCheckout", () => {
       phone: "0385898952",
       email: "",
       address: "123 Duong Test, Ha Noi",
+      province: "Ha Noi",
+      district: "Cau Giay",
       note: "",
       paymentMethod: "cod",
     };
@@ -134,6 +138,8 @@ describe("validateCheckout", () => {
       phone: "0385898952",
       email: "",
       address: "123 Duong Test, Ha Noi",
+      province: "Ha Noi",
+      district: "Cau Giay",
       note: "",
       paymentMethod: "cod",
     });
@@ -147,6 +153,8 @@ describe("validateCheckout", () => {
       phone: "abc",
       email: "",
       address: "123 Duong Test, Ha Noi",
+      province: "Ha Noi",
+      district: "Cau Giay",
       note: "",
       paymentMethod: "cod",
     });
@@ -159,6 +167,8 @@ describe("validateCheckout", () => {
       phone: "0385898952",
       email: "not-an-email",
       address: "123 Duong Test, Ha Noi",
+      province: "Ha Noi",
+      district: "Cau Giay",
       note: "",
       paymentMethod: "cod",
     });
@@ -171,10 +181,27 @@ describe("validateCheckout", () => {
       phone: "0385898952",
       email: "",
       address: "Ha Noi",
+      province: "Ha Noi",
+      district: "Cau Giay",
       note: "",
       paymentMethod: "cod",
     });
     expect(errors.address).toBeDefined();
+  });
+
+  it("province/district trong set key tuong ung", () => {
+    const errors = validateCheckout({
+      fullName: "Nguyen Test",
+      phone: "0385898952",
+      email: "",
+      address: "123 Duong Test, Ha Noi",
+      province: "",
+      district: "",
+      note: "",
+      paymentMethod: "cod",
+    });
+    expect(errors.province).toBeDefined();
+    expect(errors.district).toBeDefined();
   });
 });
 
