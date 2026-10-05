@@ -1,5 +1,6 @@
 import { CATEGORIES } from "@/data/categories";
-import PRODUCTS, { countByCategory } from "@/data/products";
+import PRODUCTS from "@/data/products";
+import { countByCategory } from "@/lib/catalog";
 import { useCatalogQuery } from "@/hooks/useCatalogQuery";
 import { SortPicker } from "./SortPicker";
 import { SearchField } from "./SearchField";
