@@ -1,6 +1,6 @@
 import type { CartLine, CheckoutInfo, PlacedOrder } from "@/types";
 
-const PAYMENT_METHODS = new Set<string>(["cod", "bank-transfer"]);
+const PAYMENT_METHODS = new Set<string>(["cod", "bank-transfer", "e-wallet"]);
 
 export const ORDERS_STORAGE_KEY = "liseamade.orders.v1";
 
@@ -110,6 +110,8 @@ export interface CheckoutErrors {
   phone?: string;
   email?: string;
   address?: string;
+  province?: string;
+  district?: string;
 }
 
 export function validateCheckout(info: CheckoutInfo): CheckoutErrors {
@@ -118,13 +120,19 @@ export function validateCheckout(info: CheckoutInfo): CheckoutErrors {
     errors.fullName = "Vui lòng nhập họ tên (ít nhất 2 ký tự).";
   }
   if (!isValidPhone(info.phone)) {
-    errors.phone = "Số điện thoại chưa hợp lệ (9–11 chữ số).";
+    errors.phone = "Vui lòng nhập số điện thoại 10 số.";
   }
   if (info.email.trim() && !isValidEmail(info.email)) {
     errors.email = "Email chưa đúng định dạng.";
   }
   if (info.address.trim().length < 10) {
     errors.address = "Vui lòng nhập địa chỉ chi tiết (ít nhất 10 ký tự).";
+  }
+  if (!info.province.trim()) {
+    errors.province = "Vui lòng chọn Tỉnh/Thành phố.";
+  }
+  if (!info.district.trim()) {
+    errors.district = "Vui lòng chọn Quận/Huyện.";
   }
   return errors;
 }

@@ -2,16 +2,12 @@ import { useState } from "react";
 import { SearchIcon } from "@/components/ui/icons";
 
 interface SearchFieldProps {
-  /** Gọi khi người dùng nhập từ khoá; phần còn lại do useCatalogQuery lo. */
   onQueryChange: (value: string) => void;
 }
 
-/**
- * Ô tìm kiếm: input `type=search`, mỗi lần người dùng gõ sẽ gọi onChange ->
- * onQueryChange, rồi useCatalogQuery ghi từ khoá lên URL để cập nhật kết quả.
- */
 export function SearchField({ onQueryChange }: SearchFieldProps) {
   const [lastValue, setLastValue] = useState("");
+
   return (
     <div className="rounded-hair border-1 border-sand-200 bg-sand-100 px-4 py-4">
       <div className="flex items-center gap-2">

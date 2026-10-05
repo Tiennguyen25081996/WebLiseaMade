@@ -68,13 +68,15 @@ export interface Totals {
   total: number;
 }
 
-export type PaymentMethod = "cod" | "bank-transfer";
+export type PaymentMethod = "cod" | "bank-transfer" | "e-wallet";
 
 export interface CheckoutInfo {
   fullName: string;
   phone: string;
   email: string;
   address: string;
+  province: string;
+  district: string;
   note: string;
   paymentMethod: PaymentMethod;
 }

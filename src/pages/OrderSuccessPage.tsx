@@ -1,56 +1,75 @@
-import { ButtonLink } from "@/components/ui/Button";
+import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { findOrderByCode } from "@/lib/orders";
 import { PlacedOrderCard } from "@/components/order/PlacedOrderCard";
+import { Button } from "@/components/ui/Button";
+import { SITE } from "@/data/site";
 
 /**
- * Page after a successful checkout. The order code comes from the URL
- * (`/dat-hang-thanh-cong?ma=LM-XXXXXX`) so the page is reload/share safe.
+ * Đặt hàng thành công theo Figma: H1 cảm ơn + mã đơn + card + copy/tra cứu.
  */
 export default function OrderSuccessPage() {
   const [searchParams] = useSearchParams();
   const code = searchParams.get("ma") ?? "";
   const order = code ? findOrderByCode(code) : undefined;
+  const [copied, setCopied] = useState(false);
 
   if (!order) {
     return (
       <div className="container-page pb-10">
-        <h1 className="font-display text-display-lg text-ink-900">Ma don khong tim</h1>
+        <h1 className="font-display text-display-lg text-ink-900">
+          Mã đơn không tìm thấy
+        </h1>
         <p className="mt-2 text-sm text-ink-500">
-          Ma don khong tim tren this browser (localStorage) — it was saved on
-          another device or the data was cleared.
+          Đơn lưu trên thiết bị khác hoặc dữ liệu đã xoá khỏi localStorage.
         </p>
-        <ButtonLink
-          to="/tra-cuu-don"
-          variant="secondary"
-          size="sm"
-          className="mt-4"
-        >
-          Tra cò sach don
-        </ButtonLink>
+        <Button to="/tra-cuu-don" variant="secondary" className="mt-4">
+          Tra cứu đơn
+        </Button>
       </div>
     );
   }
 
   return (
     <div className="container-page pb-10">
-      <h1 className="font-display text-display-lg text-ink-900">Don than-toan</h1>
+      <h1 className="font-display text-display-lg text-ink-900">
+        Cảm ơn — đơn đã ghi nhận
+      </h1>
       <p className="mt-2 text-sm text-ink-500">
-        Ma don da tim. Save this page or use the code to look it up later.
+        Mã đơn {order.code} · Lưu lại để tra cứu sau.
       </p>
 
       <div className="mt-5">
         <PlacedOrderCard order={order} />
       </div>
 
-      <ButtonLink
-        to="/san-pham"
-        variant="secondary"
-        size="sm"
-        className="mt-6"
-      >
-        Sem san phem
-      </ButtonLink>
+      <div className="mt-6 flex flex-wrap gap-3">
+        <Button to="/san-pham" variant="secondary">
+          Tiếp tục mua sắm →
+        </Button>
+        <Button
+          variant="secondary"
+          onClick={() => {
+            const done: (ok: boolean) => void = (ok) => setCopied(ok);
+            if (navigator.clipboard?.writeText) {
+              navigator.clipboard.writeText(order.code)
+                .then(() => done(true))
+                .catch(() => done(false));
+            } else {
+              done(false);
+            }
+          }}
+        >
+          {copied ? "Đã copy mã ✓" : "Copy mã · Tra cứu đơn"}
+        </Button>
+        <Button to={`/tra-cuu-don?ma=${order.code}`} variant="ghost">
+          Tra cứu đơn này →
+        </Button>
+      </div>
+
+      <p className="mt-4 text-sm text-ink-500">
+        Shop gọi xác nhận trong 24h · Hotline {SITE.hotlineDisplay}
+      </p>
     </div>
   );
 }
