@@ -1,9 +1,17 @@
 {
-  "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "web-lisea-made",
-  "compatibility_date": "2026-10-05",
-  "assets": {
-    "directory": "./dist",
-    "not_found_handling": "single-page-application"
-  }
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "web-lisea-made",
+	"compatibility_date": "2026-10-05",
+	"assets": {
+		"directory": "./dist",
+		"not_found_handling": "single-page-application"
+	},
+	"d1_databases": [
+		{
+			"binding": "prod_d1_tutorial",
+			"database_name": "prod-d1-tutorial",
+			"database_id": "d4158e2f-9580-47f6-844d-8127fb970b09",
+			"remote": true
+		}
+	]
 }
