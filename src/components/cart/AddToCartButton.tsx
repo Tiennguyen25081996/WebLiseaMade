@@ -12,6 +12,7 @@ interface AddToCartButtonProps {
   label?: string;
   /** true khi variant het line -> button disabled, `addItem` khong go. */
   disabled?: boolean;
+  ariaDisabled?: boolean;
   size?: "sm" | "md" | "lg";
   className?: string;
 }
@@ -26,6 +27,7 @@ export function AddToCartButton({
   quantity = 1,
   label = "Them gio hang",
   disabled = false,
+  ariaDisabled,
   size = "md",
   className = "",
 }: AddToCartButtonProps) {
@@ -37,6 +39,7 @@ export function AddToCartButton({
       size={size}
       className={className}
       disabled={disabled}
+      ariaDisabled={ariaDisabled}
       onClick={() => {
         if (disabled) return;
         cart.addItem(productId, variantId, quantity);
