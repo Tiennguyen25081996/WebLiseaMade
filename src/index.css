@@ -75,9 +75,9 @@
 
   --text-display-lg: 2.75rem;
   --text-display-lg--line-height: 1.02;
-  --text-display-lg--letter-spacing: -0.02em;
+  --text-display-lg--letter-spacing: -0.03em;
 
-  --text-display-xl: 4rem;
+  --text-display-xl: 4.2rem;
   --text-display-xl--line-height: 0.95;
   --text-display-xl--letter-spacing: -0.03em;
 
@@ -95,11 +95,12 @@
   --animate-image-enter: image-enter 1800ms var(--ease-couture) both;
   --animate-mask-wipe: mask-wipe 1200ms var(--ease-couture) both;
   --animate-cue-drift: cue-drift 3200ms ease-in-out infinite;
+  --animate-fade-in-slow: fade-in-slow 1200ms var(--ease-editorial) both;
 
   @keyframes reveal-up {
     from {
       opacity: 0;
-      transform: translateY(18px);
+      transform: translateY(16px);
     }
     to {
       opacity: 1;
@@ -109,168 +110,133 @@
 
   @keyframes image-enter {
     from {
-      transform: scale(1.06);
+      opacity: 0;
+      clip-path: inset(50% 50% 50% 50%);
     }
     to {
-      transform: scale(1);
-    }
-  }
-
-  @keyframes mask-wipe {
-    from {
-      clip-path: inset(0 0 100% 0);
-    }
-    to {
+      opacity: 1;
       clip-path: inset(0 0 0 0);
     }
   }
 
-  @keyframes cue-drift {
-    0%,
-    100% {
+  @keyframes fade-in-slow {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
       transform: translateY(0);
-      opacity: 0.3;
-    }
-    50% {
-      transform: translateY(7px);
-      opacity: 0.65;
     }
   }
-}
 
-@layer base {
-  html {
-    scroll-behavior: smooth;
+  /* ===============================================================
+     Base styling + components — luxury enhancements applied below.
+     =============================================================== */
+
+  * {
+    box-sizing: border-box;
   }
 
-  body {
-    @apply bg-sand-50 text-ink-900 font-sans antialiased;
+  html, body {
+    font-family: var(--font-sans);
+    line-height: 1.6;
+    color: var(--color-ink-900);
+    background-color: var(--color-sand-50);
   }
 
-  /* Display serif carry headline; optical sizing via Fraunces axes. */
-  h1,
-  h2 {
-    @apply font-display font-normal text-display-md text-ink-900;
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    line-height: 1.2;
   }
 
-  ::selection {
-    @apply bg-lagoon-200 text-ink-900;
+  a {
+    color: var(--color-lagoon-600);
+    text-decoration: none;
   }
 
-  /* Focus: refined hairline, không blob. */
-  :focus-visible {
-    @apply outline-1 outline-offset-4 outline-lagoon-600;
+  /* =================================================================
+     Luxury enhancements — Typography & Motion refines.
+     ================================================================= */
+
+  h1 {
+    letter-spacing: -0.02em;
   }
 
-  input {
-    @apply rounded-hair ring-1 ring-sand-300;
+  p {
+    margin-bottom: 1rem;
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
-      animation-duration: 0.01ms !important;
-      animation-iteration-count: 1 !important;
-      transition-duration: 0.01ms !important;
-      scroll-behavior: auto !important;
+  button, a[type=button], a[type=reset] {
+    cursor: pointer;
+    border-radius: var(--radius-hair);
+    font-family: inherit;
+    padding: 0.5rem 1rem;
+  }
+
+  /* Slow motion entrances */
+  .animate-fade-in-slow {
+    animation: var(--animate-fade-in-slow) both;
+    will-change: transform, opacity;
+  }
+
+  /* =================================================================
+     Micro-interactions & form refinements.
+     ================================================================= */
+
+  button:hover {
+    outline: none !important;
+  }
+
+  button:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible {
+    outline: 2px solid var(--color-ink-900);
+    outline-offset: 2px;
+  }
+
+  /* =================================================================
+     Form fields (luxury focus state).
+     ================================================================= */
+
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  textarea, select {
+    border: var(--radius-hair) solid var(--color-sand-300);
+    padding: 0.6rem 0.8rem;
+    font-family: inherit;
+    font-size: 0.95rem;
+    color: var(--color-ink-900);
+    background: transparent;
+    outline: none;
+    transition: all 0.2s ease-out;
+  }
+
+  input:focus, select:focus, textarea:focus {
+    border-color: var(--color-lagoon-300);
+    box-shadow: 0 0 0 1px var(--color-lagoon-300), 0 0 0 4px var(--color-lagoon-50)/20%;
+  }
+
+  /* =================================================================
+     Footer typography (luxury).
+     ================================================================= */
+  
+  @utility luxury-footer {
+    font-family: var(--font-sans);
+    letter-spacing: 0.16em;
+    color: var(--color-ink-500);
+  }
+
+  /* =================================================================
+     Scroll bar refinement for editorial feel.
+     ================================================================= */
+
+  @utility scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+    &::-webkit-scrollbar {
+      display: none;
     }
-  }
-}
-
-/* ---------------- Utilities (design language) ---------------- */
-
-@utility container-page {
-  @apply mx-auto w-full max-w-7xl px-4 sm:px-8 lg:px-10;
-}
-
-/* Full-bleed editorial band — muted, không gradient showy. */
-@utility bg-tropic {
-  background-image: linear-gradient(
-    135deg,
-    var(--color-sand-100) 0%,
-    var(--color-lagoon-100) 55%,
-    var(--color-sand-200) 100%
-  );
-}
-
-/* Hairline rule — thay ring/shadow. */
-@utility hairline {
-  @apply border-1 border-sand-300;
-}
-
-@utility hairline-strong {
-  @apply border-1 border-ink-900/20;
-}
-
-/* Eyebrow label: small caps micro-type, wide tracking. */
-@utility eyebrow-label {
-  @apply text-eyebrow uppercase text-ink-500;
-}
-
-/* Underline reveal — luxury link language (không pill link). */
-@utility underline-reveal {
-  @apply relative inline-block;
-  &::after {
-    content: "";
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 1px;
-    background-color: currentColor;
-    transform: scaleX(0);
-    transform-origin: left center;
-    transition: transform 700ms var(--ease-editorial);
-  }
-  &:hover::after,
-  &:focus-visible::after {
-    transform: scaleX(1);
-  }
-}
-
-/* Image hover zoom — slow, cinematic (1.04). */
-@utility hover-zoom {
-  @apply relative block overflow-hidden;
-  & > img,
-  & > div {
-    transition: transform 1600ms var(--ease-couture);
-  }
-  &:hover > img,
-  &:hover > div {
-    transform: scale(1.04);
-  }
-}
-
-/* Scroll cue: thin drifting rule at hero bottom. */
-@utility scroll-cue {
-  @apply relative mx-auto h-10 w-px bg-ink-300;
-  animation: var(--animate-cue-drift);
-}
-
-/* Masked text reveal for editorial headline (wipe down). */
-@utility mask-wipe {
-  animation: var(--animate-mask-wipe);
-}
-
-/* Stagger for the featured grid — explicit classes so Tailwind can scan them. */
-@utility delay-0 {
-  animation-delay: 0ms;
-}
-
-@utility delay-150 {
-  animation-delay: 150ms;
-}
-
-@utility delay-300 {
-  animation-delay: 300ms;
-}
-
-/* Hide scrollbar while keeping scroll functionality */
-@utility scrollbar-hide {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-  &::-webkit-scrollbar {
-    display: none;
   }
 }
