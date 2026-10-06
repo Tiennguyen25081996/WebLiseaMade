@@ -10,6 +10,7 @@ interface QuantityStepperProps {
   /** Max allowed; `clampQuantity` still enforces 1..99 as a safety net. */
   max?: number;
   className?: string;
+  ariaLabel?: string;
 }
 
 /**
@@ -22,6 +23,7 @@ export function QuantityStepper({
   current,
   max = 99,
   className = "",
+  ariaLabel = "Thay so lang",
 }: QuantityStepperProps) {
   const cart = useCart();
   const atMax = current >= max;
@@ -29,7 +31,7 @@ export function QuantityStepper({
   return (
     <div
       role="group"
-      aria-label="Thay so lang"
+      aria-label={ariaLabel}
       className={`inline-flex items-center gap-2 ${className}`}
     >
       <Button

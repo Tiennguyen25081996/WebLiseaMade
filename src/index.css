@@ -265,3 +265,12 @@
 @utility delay-300 {
   animation-delay: 300ms;
 }
+
+/* Hide scrollbar while keeping scroll functionality */
+@utility scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}

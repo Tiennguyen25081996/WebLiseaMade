@@ -8,6 +8,7 @@ interface ButtonProps {
   to?: string;
   onClick?: () => void;
   disabled?: boolean;
+  ariaDisabled?: boolean;
   className?: string;
 }
 
@@ -40,6 +41,7 @@ export function Button({
   to,
   onClick,
   disabled = false,
+  ariaDisabled,
   className = "",
 }: ButtonProps) {
   const classes = `${BASE} ${VARIANTS[variant]} ${SIZES[size]} ${className}`;
@@ -57,6 +59,7 @@ export function Button({
     <button
       type="button"
       disabled={disabled}
+      aria-disabled={ariaDisabled ?? disabled}
       onClick={onClick}
       className={classes}
     >
