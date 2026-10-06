@@ -12,10 +12,6 @@ interface ButtonProps {
   className?: string;
 }
 
-/**
- * Language button luxury: radius hairline, no giant pill, no shadow.
- * Interaction = slow transition (500ms) + subtle tone, not bounce.
- */
 const BASE =
   "relative inline-flex items-center justify-center gap-2 rounded-hair px-5 py-2 text-xs font-sans font-medium tracking-[0.08em] transition-all duration-500 ease-editorial disabled:opacity-40 disabled:cursor-not-allowed";
 
@@ -26,13 +22,13 @@ const VARIANTS = {
   ghost: "bg-transparent text-ink-700 hover:text-ink-900",
   danger:
     "bg-transparent text-coral-700 border-1 border-coral-700/35 hover:border-coral-700/80 hover:bg-coral-50",
-} as const;
+};
 
 const SIZES = {
   sm: "px-3 py-1 text-2xs",
   md: "px-5 py-2 text-xs",
   lg: "px-7 py-3 text-sm",
-} as const;
+};
 
 export function Button({
   children,
@@ -40,12 +36,11 @@ export function Button({
   size = "md",
   to,
   onClick,
-  disabled = false,
+  disabled,
   ariaDisabled,
   className = "",
 }: ButtonProps) {
   const classes = `${BASE} ${VARIANTS[variant]} ${SIZES[size]} ${className}`;
-
 
   if (to) {
     return (

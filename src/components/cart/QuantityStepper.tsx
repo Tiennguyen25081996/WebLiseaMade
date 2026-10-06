@@ -37,7 +37,7 @@ export function QuantityStepper({
       <Button
         variant="ghost"
         size="sm"
-        className="border-1 border-ink-900/15 hover:border-ink-900/45"
+        className="border-1 border-ink-900/15 hover:border-ink-900/40"
         aria-label={atMax ? "Da am so lang cực maximum" : "Them so lang"}
         disabled={atMax}
         onClick={() => {
@@ -50,7 +50,7 @@ export function QuantityStepper({
       <Button
         variant="ghost"
         size="sm"
-        className="border-1 border-ink-900/15 hover:border-ink-900/45"
+        className="border-1 border-ink-900/15 hover:border-ink-900/40"
         aria-label={current <= 1 ? "Rut san phem gio hang" : "Giassm so lang"}
         onClick={() => cart.setQuantity(productId, variantId, current - 1)}
       >
