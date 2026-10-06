@@ -130,9 +130,11 @@
     }
   }
 
-  /* ===============================================================
-     Base styling + components — luxury enhancements applied below.
-     =============================================================== */
+}
+
+/* ===============================================================
+   Base styling + components — luxury enhancements applied below.
+   =============================================================== */
 
   * {
     box-sizing: border-box;
@@ -203,7 +205,7 @@
   input[type="email"],
   input[type="password"],
   textarea, select {
-    border: var(--radius-hair) solid var(--color-sand-300);
+    border: 0.5px solid var(--color-sand-300);
     padding: 0.6rem 0.8rem;
     font-family: inherit;
     font-size: 0.95rem;
@@ -215,7 +217,7 @@
 
   input:focus, select:focus, textarea:focus {
     border-color: var(--color-lagoon-300);
-    box-shadow: 0 0 0 1px var(--color-lagoon-300), 0 0 0 4px var(--color-lagoon-50)/20%;
+    box-shadow: 0 0 0 1px var(--color-lagoon-300);
   }
 
   /* =================================================================
@@ -239,4 +241,3 @@
       display: none;
     }
   }
-}
