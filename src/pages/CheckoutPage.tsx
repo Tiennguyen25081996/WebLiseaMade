@@ -1,4 +1,3 @@
-import React, { useState } from "react"; // Added for JSX support
 export default function CheckoutPage() {
   return (
     <div className="grid gap-16 lg:grid-cols-[1fr_400px]">
