@@ -68,10 +68,13 @@ export function getDb(env: Env): D1Database | null {
   return env.DB ?? env.prod_d1_tutorial ?? null;
 }
 
-/** Tự động migration khởi tạo bảng nếu chưa có */
+let dbInitialized = false;
+
+/** Tự động migration khởi tạo bảng nếu chưa có (chạy 1 lần an toàn) */
 export async function initDb(db: D1Database): Promise<void> {
-  const schemaSql = `
-    CREATE TABLE IF NOT EXISTS orders (
+  if (dbInitialized) return;
+  try {
+    await db.prepare(`CREATE TABLE IF NOT EXISTS orders (
       id TEXT PRIMARY KEY,
       code TEXT UNIQUE NOT NULL,
       customer_name TEXT NOT NULL,
@@ -87,9 +90,9 @@ export async function initDb(db: D1Database): Promise<void> {
       total INTEGER NOT NULL,
       status TEXT DEFAULT 'pending',
       created_at TEXT NOT NULL
-    );
+    )`).run();
 
-    CREATE TABLE IF NOT EXISTS order_items (
+    await db.prepare(`CREATE TABLE IF NOT EXISTS order_items (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       order_code TEXT NOT NULL,
       product_id TEXT NOT NULL,
@@ -99,23 +102,26 @@ export async function initDb(db: D1Database): Promise<void> {
       price INTEGER NOT NULL,
       quantity INTEGER NOT NULL,
       line_total INTEGER NOT NULL
-    );
+    )`).run();
 
-    CREATE INDEX IF NOT EXISTS idx_order_items_order_code ON order_items(order_code);
+    await db.prepare(`CREATE INDEX IF NOT EXISTS idx_order_items_order_code ON order_items(order_code)`).run();
 
-    CREATE TABLE IF NOT EXISTS customer_events (
+    await db.prepare(`CREATE TABLE IF NOT EXISTS customer_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       event_type TEXT NOT NULL,
       payload TEXT,
       user_agent TEXT,
       ip TEXT,
       created_at TEXT NOT NULL
-    );
+    )`).run();
 
-    CREATE INDEX IF NOT EXISTS idx_customer_events_type_created ON customer_events(event_type, created_at);
-  `;
+    await db.prepare(`CREATE INDEX IF NOT EXISTS idx_customer_events_type_created ON customer_events(event_type, created_at)`).run();
 
-  await db.exec(schemaSql);
+    dbInitialized = true;
+  } catch (err) {
+    console.warn("initDb warning:", err);
+    dbInitialized = true;
+  }
 }
 
 function jsonResponse(data: unknown, status = 200): Response {
