@@ -31,7 +31,7 @@ export const PRODUCTS: Product[] = [
     price: 389000,
     compareAtPrice: 459000,
     category: "ao",
-    images: [],
+    images: ["/figma-images/product-feat-1.png", "/figma-images/catalog-1.png"],
     shortDescription: "Áo sơ mi hoa dừa với họa tiết tinh tế, phù hợp cho kỳ nghỉ hè.",
     description:
       "Chất vải mềm mại, thoáng mát, họa tiết hoa dừa tone nhiệt đới dễ phối với quần short hoặc chân váy. Form rộng thoải mái, phù hợp đi biển hay dạo phố.",
@@ -47,7 +47,7 @@ export const PRODUCTS: Product[] = [
     price: 1118000,
     compareAtPrice: 1300000,
     category: "vay-dam",
-    images: [],
+    images: ["/figma-images/product-feat-2.png", "/figma-images/catalog-2.png"],
     shortDescription: "Váy maxi hoa anh đào nhẹ nhàng và phóng khoáng.",
     description:
       "Váy maxi dáng dài thướt tha với họa tiết hoa anh đào, chất vải bay bổng nhẹ nhàng. Cạp thun co giãn thoải mái, phù hợp đi biển và chụp ảnh.",
@@ -63,7 +63,7 @@ export const PRODUCTS: Product[] = [
     price: 720000,
     compareAtPrice: 850000,
     category: "set-do",
-    images: [],
+    images: ["/figma-images/product-feat-3.png", "/figma-images/catalog-3.png"],
     shortDescription: "Set đồ linen couple cho buổi hẹn hò lãng mạn.",
     description:
       "Set linen hai mảnh phong cách tối giản, chất vải linen thoáng mát, mặc couple hoặc mặc riêng đều đẹp. Nhẹ, ít nhăn, dễ phối đồ.",
@@ -79,7 +79,7 @@ export const PRODUCTS: Product[] = [
     price: 275000,
     compareAtPrice: 320000,
     category: "phu-kien",
-    images: [],
+    images: ["/figma-images/catalog-4.png", "/figma-images/lifestyle-1.png"],
     shortDescription: "Túi cói đan thủ công tỉ mỉ.",
     description:
       "Túi cói đan thủ công chắc chắn, quai xách tiện dụng, đủ rộng để mang theo đồ đi biển. Tạo điểm nhấn phóng khoáng cho mọi set đồ.",
@@ -95,7 +95,7 @@ export const PRODUCTS: Product[] = [
     price: 475000,
     compareAtPrice: 550000,
     category: "vay-dam",
-    images: [],
+    images: ["/figma-images/lifestyle-2.png", "/figma-images/lookbook-1.png"],
     shortDescription: "Đầm suông thời trang, thoải mái.",
     description:
       "Đầm suông dáng dài họa tiết nhiệt đới, form rộng che khuyết điểm, chất vải nhẹ thoáng mát. Phù hợp đi biển, đi chơi hay dạo phố mùa hè.",
@@ -111,7 +111,7 @@ export const PRODUCTS: Product[] = [
     price: 445000,
     compareAtPrice: 520000,
     category: "vay-dam",
-    images: [],
+    images: ["/figma-images/lifestyle-3.png", "/figma-images/lookbook-2.png"],
     shortDescription: "Váy xòe dáng yếm trẻ trung, hiện đại.",
     description:
       "Váy xòe dáng yếm khoe eo nhẹ nhàng, dáng váy bồng bềnh trẻ trung. Dễ phối với áo croptop hoặc áo thun đơn giản.",
@@ -127,7 +127,7 @@ export const PRODUCTS: Product[] = [
     price: 165000,
     compareAtPrice: 190000,
     category: "phu-kien",
-    images: [],
+    images: ["/figma-images/lifestyle-4.png", "/figma-images/lookbook-3.png"],
     shortDescription: "Nón rộng vành vải nhẹ, mát.",
     description:
       "Nón rộng vành vải mềm, nhẹ, che nắng hiệu quả và dễ gấp gọn mang theo du lịch. Phù hợp đi biển và dạo phố.",
@@ -143,7 +143,7 @@ export const PRODUCTS: Product[] = [
     price: 385000,
     compareAtPrice: 450000,
     category: "set-do",
-    images: [],
+    images: ["/figma-images/lookbook-4.png", "/figma-images/brand-story.png"],
     shortDescription: "Set pyjama dừa biển thoải mái cho kỳ nghỉ.",
     description:
       "Set pyjama họa tiết dừa biển, chất vải mềm mịn thoải mái khi ngủ hoặc mặc nhà. Phong cách nhiệt đới vui mắt, phù hợp kỳ nghỉ.",
@@ -159,7 +159,7 @@ export const PRODUCTS: Product[] = [
     price: 520000,
     compareAtPrice: 600000,
     category: "set-do",
-    images: [],
+    images: ["/figma-images/pdp-main.png", "/figma-images/hero.png"],
     shortDescription: "Set thể thao năng động, thoải mái.",
     description:
       "Set thể thao hai mảnh co giãn tốt, thấm hút mồ hôi, phù hợp tập gym, yoga hay chạy bộ. Form ôm gọn nhưng vẫn thoải mái.",
@@ -175,7 +175,7 @@ export const PRODUCTS: Product[] = [
     price: 275000,
     compareAtPrice: 320000,
     category: "phu-kien",
-    images: [],
+    images: ["/figma-images/catalog-1.png", "/figma-images/product-feat-1.png"],
     shortDescription: "Túi cói đan thủ công tỉ mỉ.",
     description:
       "Túi cói đan thủ công chắc chắn, quai xách tiện dụng, đủ rộng để mang theo đồ đi biển. Tạo điểm nhấn phóng khoáng cho mọi set đồ.",
@@ -191,7 +191,7 @@ export const PRODUCTS: Product[] = [
     price: 165000,
     compareAtPrice: 190000,
     category: "phu-kien",
-    images: [],
+    images: ["/figma-images/catalog-2.png", "/figma-images/product-feat-2.png"],
     shortDescription: "Nón rộng vành vải nhẹ, mát.",
     description:
       "Nón rộng vành vải mềm, nhẹ, che nắng hiệu quả và dễ gấp gọn mang theo du lịch. Phù hợp đi biển và dạo phố.",
@@ -207,7 +207,7 @@ export const PRODUCTS: Product[] = [
     price: 195000,
     compareAtPrice: 220000,
     category: "phu-kien",
-    images: [],
+    images: ["/figma-images/catalog-3.png", "/figma-images/product-feat-3.png"],
     shortDescription: "Kính mát gọng phi công thời trang.",
     description:
       "Kính mát gọng phi công kinh điển, tròng chống UV400, form unisex phù hợp mọi khuôn mặt. Bảo vệ mắt và tăng điểm nhấn cho set đồ.",

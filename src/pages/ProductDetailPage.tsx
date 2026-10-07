@@ -104,8 +104,8 @@ export default function ProductDetailPage() {
             </span>
           )}
 
-          {/* Product Name - Fraunces 56px (-0.03em tracking per style_adca7344) */}
-          <h1 className="font-display text-[56px] leading-[1.15] tracking-[-0.03em] text-ink-900 mb-4">
+          {/* Product Name - Responsive font size (28px mobile, 56px desktop) */}
+          <h1 className="font-display text-2xl sm:text-4xl lg:text-[56px] leading-[1.15] tracking-[-0.03em] text-ink-900 mb-4">
             {product.name}
           </h1>
 
@@ -168,8 +168,8 @@ export default function ProductDetailPage() {
             </div>
           </div>
 
-          {/* Action Buttons - Two buttons side by side: 240x48 each */}
-          <div className="flex items-center gap-4 mb-6">
+          {/* Action Buttons - Responsive: full-width stack on mobile, 240px side-by-side on desktop */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 mb-6 w-full max-w-[500px]">
             {/* Add to Cart - Ink background */}
             <AddToCartButton
               productId={product.id}
@@ -178,14 +178,14 @@ export default function ProductDetailPage() {
               ariaDisabled={!selected.inStock}
               size="lg"
               label="Thêm vào giỏ →"
-              className="w-[240px] h-[48px] rounded-hair bg-ink-900 text-sand-50 hover:bg-ink-700 text-[18px] font-medium tracking-[0.02em]"
+              className="w-full sm:w-[240px] h-[48px] rounded-hair bg-ink-900 text-sand-50 hover:bg-ink-700 text-base sm:text-[18px] font-medium tracking-[0.02em] flex items-center justify-center tap-feedback"
             />
             
             {/* Buy Now - Lagoon background */}
             <Button
               variant="primary"
               size="lg"
-              className="w-[240px] h-[48px] rounded-hair bg-lagoon-600 text-sand-50 hover:bg-lagoon-700 text-[18px] font-medium tracking-[0.02em]"
+              className="w-full sm:w-[240px] h-[48px] rounded-hair bg-lagoon-600 text-sand-50 hover:bg-lagoon-700 text-base sm:text-[18px] font-medium tracking-[0.02em] flex items-center justify-center tap-feedback"
               onClick={() => {
                 // Add to cart then navigate to checkout
                 cart.addItem(product.id, selected.id, 1);
@@ -313,47 +313,6 @@ export default function ProductDetailPage() {
           </div>
         </section>
       )}
-
-      {/* Floating Sticky Quick-Buy Bar for Mobile (Jacquemus / Luxury aesthetic) */}
-      <aside 
-        className="fixed bottom-16 inset-x-0 z-40 p-3 md:hidden animate-sheet-slide-up"
-        aria-label="Thanh mua nhanh"
-      >
-        <div className="luxury-glass mx-auto max-w-[390px] rounded-hair p-3 shadow-lg flex items-center justify-between gap-3 border border-sand-300/80">
-          <div className="flex flex-col min-w-0 flex-1">
-            <span className="truncate text-xs font-medium text-ink-900">{product.name}</span>
-            <div className="flex items-baseline gap-2 mt-0.5">
-              <span className="text-sm font-semibold text-coral-700 tabular-nums">
-                {product.price.toLocaleString("vi-VN")} ₫
-              </span>
-              <span className="text-[11px] text-ink-500 truncate">({selected.label})</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <AddToCartButton
-              productId={product.id}
-              variantId={selected.id}
-              disabled={!selected.inStock}
-              ariaDisabled={!selected.inStock}
-              size="sm"
-              label="Thêm giỏ"
-              className="tap-feedback min-h-[44px] px-3.5 py-2 rounded-hair bg-ink-900 text-sand-50 hover:bg-ink-700 text-xs font-medium tracking-[0.04em]"
-            />
-            <Button
-              variant="primary"
-              size="sm"
-              className="tap-feedback min-h-[44px] px-3.5 py-2 rounded-hair bg-lagoon-600 text-sand-50 hover:bg-lagoon-700 text-xs font-medium tracking-[0.04em]"
-              onClick={() => {
-                cart.addItem(product.id, selected.id, 1);
-                navigate("/thanh-toan");
-              }}
-              disabled={!selected.inStock}
-            >
-              Mua ngay
-            </Button>
-          </div>
-        </div>
-      </aside>
     </div>
   );
 }

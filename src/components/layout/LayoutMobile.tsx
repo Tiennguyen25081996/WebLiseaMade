@@ -2,15 +2,33 @@
  * Mobile-only layout wrapper — Luxury Couture Navigation (Jacquemus / Loewe / Khaite aesthetic)
  * Khớp chuẩn Figma (109:403 Header + 109:405 Footer) với motion tokens & couture micro-interactions.
  */
+import { useState, useEffect } from "react";
 import { Link, NavLink, Outlet } from "react-router-dom";
 import { SITE } from "@/data/site";
 import { useCart } from "@/context/cart-context";
 
 function MobileHeader() {
   const { itemCount } = useCart();
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 20);
+    };
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   return (
-    <header className="sticky top-0 z-50 h-16 luxury-glass border-b border-sand-200/60 flex-none" aria-label="Menu di động">
+    <header
+      className={`sticky top-0 z-50 h-16 flex-none transition-all duration-500 ease-editorial ${
+        scrolled
+          ? "border-b border-sand-200/90 bg-sand-50/95 backdrop-blur-xl shadow-[0_4px_24px_rgba(28,26,24,0.04)]"
+          : "border-b border-transparent bg-sand-50/60 backdrop-blur-sm"
+      }`}
+      aria-label="Menu di động"
+    >
       <nav className="flex items-center justify-between h-full w-full max-w-[390px] mx-auto px-5">
         <Link 
           to="/"
@@ -29,7 +47,10 @@ function MobileHeader() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25c-.669 0-1.189-.578-1.119-1.243l1.263-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007ZM8.625 10.5a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm7.5 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
           </svg>
           {itemCount > 0 && (
-            <span className="absolute top-1.5 right-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-ink-900 px-1 text-[10px] font-medium text-sand-50 shadow-sm animate-fade-in-slow tabular-nums">
+            <span
+              key={itemCount}
+              className="absolute top-1.5 right-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-ink-900 px-1 text-[10px] font-medium text-sand-50 shadow-sm animate-badge-pop tabular-nums"
+            >
               {itemCount > 99 ? "99+" : itemCount}
             </span>
           )}
@@ -115,7 +136,10 @@ function MobileFooter() {
                 <div className="relative flex items-center justify-center">
                   <Icon className={`h-5 w-5 transition-transform duration-300 ease-editorial ${isActive ? "scale-110 stroke-[1.8]" : "stroke-[1.3]"}`} />
                   {isCart && itemCount > 0 && (
-                    <span className="absolute -top-1 -right-2 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-coral-700 px-1 text-[9px] font-bold text-sand-50 tabular-nums">
+                    <span
+                      key={itemCount}
+                      className="absolute -top-1 -right-2 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-coral-700 px-1 text-[9px] font-bold text-sand-50 tabular-nums animate-badge-pop shadow-sm"
+                    >
                       {itemCount > 99 ? "99+" : itemCount}
                     </span>
                   )}
