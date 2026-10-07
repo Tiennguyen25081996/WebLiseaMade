@@ -86,6 +86,7 @@ export default function CheckoutPage() {
     paymentMethod: "cod",
   });
 
+  const [touched, setTouched] = useState<Partial<Record<FieldId, boolean>>>({});
   const [saveFailed, setSaveFailed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -93,8 +94,31 @@ export default function CheckoutPage() {
   const invalid = hasErrors(errors);
   const emptyCart = cart.lines.length === 0;
 
+  const handleBlur = (fieldId: FieldId) => {
+    setTouched((prev) => ({ ...prev, [fieldId]: true }));
+  };
+
   const handleCheckout = async () => {
-    if (invalid || isSubmitting) return;
+    // Touch all fields to show errors if any
+    const allTouched: Partial<Record<FieldId, boolean>> = {};
+    for (const f of FIELDS) {
+      allTouched[f.id] = true;
+    }
+    setTouched(allTouched);
+
+    if (invalid || isSubmitting) {
+      // Focus trường lỗi đầu tiên theo chuẩn a11y
+      for (const field of FIELDS) {
+        if (field.errorKey && errors[field.errorKey]) {
+          const el = document.getElementById(field.id);
+          if (el) {
+            el.focus();
+            break;
+          }
+        }
+      }
+      return;
+    }
     
     setIsSubmitting(true);
     try {
@@ -150,7 +174,9 @@ export default function CheckoutPage() {
                 <div className="grid gap-6 sm:grid-cols-2">
                   {FIELDS.map((field) => {
                     const errorKey = field.errorKey as keyof CheckoutErrors;
-                    const errorText = errorKey ? errors[errorKey] : undefined;
+                    const rawError = errorKey ? errors[errorKey] : undefined;
+                    const isTouched = Boolean(touched[field.id]);
+                    const showError = isTouched && rawError !== undefined;
                     return (
                       <div
                         key={field.id}
@@ -173,18 +199,28 @@ export default function CheckoutPage() {
                             field.id === "email" ? "email" : "off"
                           }
                           placeholder={field.placeholder}
-                          aria-invalid={errorText !== undefined}
-                          aria-describedby={errorText !== undefined ? `err-${field.id}` : undefined}
+                          aria-invalid={showError ? "true" : undefined}
+                          aria-describedby={showError ? `err-${field.id}` : undefined}
+                          onBlur={() => handleBlur(field.id)}
                           onChange={(e) => {
-                            setInfo((prev) => applyField(prev, field.id, e.target.value));
+                            let val = e.target.value;
+                            if (field.id === "so-dien-thoai") {
+                              // Auto-clean: loại bỏ khoảng trắng thừa
+                              val = val.replace(/\s+/g, "");
+                            }
+                            setInfo((prev) => applyField(prev, field.id, val));
                           }}
                           className={`block w-full rounded-hair border-1 px-4 py-3 text-base text-ink-900 transition-all ${
-                            errorText
+                            showError
                               ? "border-coral-700 bg-coral-50/50"
                               : "border-sand-300 bg-sand-100 hover:border-ink-900/40"
                           }`}
                         />
-                        {errorText && <p className="text-xs font-medium text-coral-700">⚠ {errorText}</p>}
+                        {showError && (
+                          <p id={`err-${field.id}`} className="text-xs font-medium text-coral-700" role="alert">
+                            ⚠ {rawError}
+                          </p>
+                        )}
                       </div>
                     );
                   })}

@@ -3,6 +3,8 @@
  * Xử lý API đặt hàng, tra cứu đơn và lưu vết sự kiện khách hàng trên Cloudflare D1.
  */
 
+import { isValidOrderCode, validateOrderPayload } from "../src/lib/validation";
+
 // Định nghĩa tối thiểu cho interface D1Database nếu môi trường worker chưa có types đầy đủ
 export interface D1PreparedStatement {
   bind(...values: unknown[]): D1PreparedStatement;
@@ -168,40 +170,32 @@ export default {
 
         // POST /api/orders
         if (url.pathname === "/api/orders" && request.method === "POST") {
-          const body = (await request.json().catch(() => null)) as Partial<OrderInput> | null;
-          if (!body) {
+          const rawBody = await request.json().catch(() => null);
+          if (!rawBody) {
             return jsonResponse({ success: false, error: "Dữ liệu JSON không hợp lệ" }, 400);
           }
 
-          // Validate bắt buộc
-          if (
-            !body.code ||
-            !body.customerName?.trim() ||
-            !body.phone?.trim() ||
-            !body.address?.trim() ||
-            !body.paymentMethod ||
-            !Array.isArray(body.items) ||
-            body.items.length === 0
-          ) {
+          // Kiểm tra và sanitize toàn bộ input bằng module validation
+          const validation = validateOrderPayload(rawBody);
+          if (!validation.valid || !validation.sanitized) {
             return jsonResponse(
               {
                 success: false,
-                error: "Thiếu thông tin đơn hàng bắt buộc hoặc danh sách sản phẩm rỗng",
+                error: "Dữ liệu đầu vào không hợp lệ",
+                errors: validation.errors,
               },
               400,
             );
           }
 
-          const orderId = body.id || `ord_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-          const createdAt = body.createdAt || new Date().toISOString();
-          const status = body.status || "pending";
-          const email = body.email?.trim() || null;
-          const note = body.note?.trim() || null;
-          const province = body.province?.trim() || "";
-          const district = body.district?.trim() || "";
-          const subtotal = Math.round(body.subtotal ?? 0);
-          const shippingFee = Math.round(body.shippingFee ?? 0);
-          const total = Math.round(body.total ?? (subtotal + shippingFee));
+          const sanitized = validation.sanitized;
+          const orderId = (rawBody as Record<string, unknown>).id
+            ? String((rawBody as Record<string, unknown>).id)
+            : `ord_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+          const createdAt = (rawBody as Record<string, unknown>).createdAt
+            ? String((rawBody as Record<string, unknown>).createdAt)
+            : new Date().toISOString();
+          const status = "pending";
 
           // Chuẩn bị batch queries cho transaction
           const statements: D1PreparedStatement[] = [];
@@ -216,28 +210,24 @@ export default {
               )
               .bind(
                 orderId,
-                body.code,
-                body.customerName.trim(),
-                body.phone.trim(),
-                email,
-                body.address.trim(),
-                province,
-                district,
-                note,
-                body.paymentMethod,
-                subtotal,
-                shippingFee,
-                total,
+                sanitized.code,
+                sanitized.customerName,
+                sanitized.phone,
+                sanitized.email,
+                sanitized.address,
+                sanitized.province,
+                sanitized.district,
+                sanitized.note,
+                sanitized.paymentMethod,
+                sanitized.subtotal,
+                sanitized.shippingFee,
+                sanitized.total,
                 status,
                 createdAt,
               ),
           );
 
-          for (const item of body.items) {
-            const price = Math.round(item.price ?? 0);
-            const quantity = Math.round(item.quantity ?? 1);
-            const lineTotal = Math.round(item.lineTotal ?? price * quantity);
-
+          for (const item of sanitized.items) {
             statements.push(
               db
                 .prepare(
@@ -246,14 +236,14 @@ export default {
                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
                 )
                 .bind(
-                  body.code,
+                  sanitized.code,
                   item.productId,
                   item.variantId,
-                  item.productName || "",
-                  item.variantLabel || "",
-                  price,
-                  quantity,
-                  lineTotal,
+                  item.productName,
+                  item.variantLabel,
+                  item.price,
+                  item.quantity,
+                  item.lineTotal,
                 ),
             );
           }
@@ -265,9 +255,9 @@ export default {
             success: true,
             order: {
               id: orderId,
-              code: body.code,
+              code: sanitized.code,
               status,
-              total,
+              total: sanitized.total,
               createdAt,
             },
           }, 201);
@@ -276,8 +266,8 @@ export default {
         // GET /api/orders/:code
         if (url.pathname.startsWith("/api/orders/") && request.method === "GET") {
           const code = decodeURIComponent(url.pathname.replace("/api/orders/", "")).trim();
-          if (!code) {
-            return jsonResponse({ success: false, error: "Mã đơn hàng không hợp lệ" }, 400);
+          if (!isValidOrderCode(code)) {
+            return jsonResponse({ success: false, error: "Định dạng mã đơn hàng không hợp lệ (LM-XXXXXX)" }, 400);
           }
 
           const order = await db
