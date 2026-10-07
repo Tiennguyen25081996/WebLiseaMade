@@ -1,0 +1,25 @@
+[
+  {
+    "code": "LM-L6SNJ4",
+    "customerName": "test",
+    "phone": "0967955931",
+    "address": "so 105 ngo 59",
+    "province": "ha noi",
+    "district": "btl",
+    "paymentMethod": "cod",
+    "subtotal": 389000,
+    "shippingFee": 30000,
+    "total": 419000,
+    "items": [
+      {
+        "productId": "p1",
+        "variantId": "v1",
+        "productName": "Áo sơ mi hoa dừa",
+        "variantLabel": "M",
+        "price": 389000,
+        "quantity": 1,
+        "lineTotal": 389000
+      }
+    ]
+  }
+]
