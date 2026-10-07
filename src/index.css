@@ -96,6 +96,41 @@
   --animate-mask-wipe: mask-wipe 1200ms var(--ease-couture) both;
   --animate-cue-drift: cue-drift 3200ms ease-in-out infinite;
   --animate-fade-in-slow: fade-in-slow 1200ms var(--ease-editorial) both;
+  --animate-shimmer-luxury: shimmer-luxury 2.5s infinite linear;
+  --animate-sheet-slide-up: sheet-slide-up 500ms var(--ease-editorial) both;
+  --animate-tap-scale: tap-scale 200ms var(--ease-editorial);
+
+  @keyframes shimmer-luxury {
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
+  }
+
+  @keyframes sheet-slide-up {
+    from {
+      opacity: 0;
+      transform: translateY(100%);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes tap-scale {
+    0% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(0.96);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
 
   @keyframes reveal-up {
     from {
@@ -285,4 +320,14 @@
   &::-webkit-scrollbar {
     display: none;
   }
+}
+
+/* Luxury Glassmorphism (Jacquemus / Loewe aesthetic) */
+@utility luxury-glass {
+  @apply bg-sand-50/85 backdrop-blur-xl border-sand-200/60 shadow-[0_8px_32px_rgba(28,26,24,0.04)];
+}
+
+/* Tap Feedback cho mobile micro-interactions */
+@utility tap-feedback {
+  @apply transition-transform duration-200 ease-editorial active:scale-95;
 }

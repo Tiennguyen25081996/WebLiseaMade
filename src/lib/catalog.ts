@@ -83,27 +83,16 @@ export function getVariant(product: Product, variantId: string) {
   return product.variants.find((v) => v.id === variantId);
 }
 
-/** Sản phẩm cùng nhóm, ưu tiên giá gần nhau, loại trừ chính nó.
- * Nếu cùng nhóm không đủ -> fallback sang cross-category "you might also like". */
+/** Sản phẩm cùng nhóm, ưu tiên giá gần nhau, loại trừ chính nó. */
 export function getRelatedProducts(
   products: readonly Product[],
   product: Product,
   limit = 4,
 ): Product[] {
-  const sameCategory = products
+  return products
     .filter((p) => p.id !== product.id && p.category === product.category)
-    .sort((a, b) => Math.abs(a.price - product.price) - Math.abs(b.price - product.price));
-
-  if (sameCategory.length >= limit) {
-    return sameCategory.slice(0, limit);
-  }
-
-  // Fallback: cross-category, exclude same category already included
-  const crossCategory = products
-    .filter((p) => p.id !== product.id && p.category !== product.category)
-    .sort((a, b) => Math.abs(a.price - product.price) - Math.abs(b.price - product.price));
-
-  return [...sameCategory, ...crossCategory].slice(0, limit);
+    .sort((a, b) => Math.abs(a.price - product.price) - Math.abs(b.price - product.price))
+    .slice(0, limit);
 }
 
 export function countByCategory(
