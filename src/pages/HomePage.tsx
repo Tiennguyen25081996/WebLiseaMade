@@ -16,16 +16,16 @@ import { ProductImage } from "@/components/product/ProductImage";
 export default function HomePage() {
   const featured = PRODUCTS.slice(0, 3);
   const lifestyle = [
-    { src: "/shop-tiktok/life1_fit.jpg", caption: "Đi biển · Voan hoa" },
-    { src: "/shop-tiktok/life2_fit.jpg", caption: "Dạo phố · Linen mát" },
-    { src: "/shop-tiktok/life3_fit.jpg", caption: "Cafe sáng · Cotton nhẹ" },
-    { src: "/shop-tiktok/life4_1.jpg", caption: "Picnic · Summer 2026" },
+    { src: "/figma-images/lifestyle-1.png", caption: "Đi biển · Voan hoa" },
+    { src: "/figma-images/lifestyle-2.png", caption: "Dạo phố · Linen mát" },
+    { src: "/figma-images/lifestyle-3.png", caption: "Cafe sáng · Cotton nhẹ" },
+    { src: "/figma-images/lifestyle-4.png", caption: "Picnic · Summer 2026" },
   ];
   const lookbook = [
-    { src: "/shop-tiktok/look1.jpg", caption: "Nắng sớm · Sơ mi voan" },
-    { src: "/shop-tiktok/look2.jpg", caption: "Chiều biển · Maxi bay" },
-    { src: "/shop-tiktok/look3.jpg", caption: "Phố hè · Linen đôi" },
-    { src: "/shop-tiktok/look4.jpg", caption: "Đêm tiệc · Croptop" },
+    { src: "/figma-images/lookbook-1.png", caption: "Nắng sớm · Sơ mi voan" },
+    { src: "/figma-images/lookbook-2.png", caption: "Chiều biển · Maxi bay" },
+    { src: "/figma-images/lookbook-3.png", caption: "Phố hè · Linen đôi" },
+    { src: "/figma-images/lookbook-4.png", caption: "Đêm tiệc · Croptop" },
   ];
 
   /** Featured section dùng ảnh hero thật từ Figma/desktop design. */
@@ -51,7 +51,7 @@ export default function HomePage() {
         <div className="order-1 md:order-2 md:col-span-7">
           <div className="hover-zoom animate-image-enter aspect-4/5 overflow-hidden rounded-hair md:aspect-4/3">
             <ProductImage
-              src="/shop-tiktok/hero.jpg"
+              src="/figma-images/hero.png"
               alt={`${SITE.brand} — bộ sưu tập Hawaii Summer`}
               seed="hero"
               priority
@@ -158,7 +158,7 @@ export default function HomePage() {
         </div>
         <div className="hover-zoom animate-image-enter aspect-4/5 overflow-hidden rounded-hair">
           <ProductImage
-            src="/shop-tiktok/story_tall.jpg"
+            src="/figma-images/brand-story.png"
             alt="Câu chuyện thương hiệu LiseaMade"
             seed="story"
             showPlaceholderNote={false}

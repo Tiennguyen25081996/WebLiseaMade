@@ -19,19 +19,31 @@ interface ProductCardProps {
 export function ProductCard({ product, priority = false }: ProductCardProps) {
   const href = `/san-pham/${product.id}`;
   const totalStock = product.variants.filter((v) => v.inStock).length;
+  const hasSecondary = Boolean(product.images[1]);
 
   return (
-    <article className="group flex h-full flex-col overflow-hidden rounded-hair bg-sand-100">
-      <Link to={href} className="hover-zoom aspect-4/5" tabIndex={-1}>
+    <article className="group flex h-full flex-col overflow-hidden rounded-hair bg-sand-100 transition-all duration-500 hover:shadow-[0_8px_24px_rgba(28,26,24,0.05)]">
+      <Link to={href} className="hover-zoom aspect-4/5 relative overflow-hidden block" tabIndex={-1}>
         <ProductImage
           src={product.images[0]}
           alt={product.name}
           seed={product.id}
           priority={priority}
-          className="animate-image-enter"
+          className={`animate-image-enter transition-opacity duration-700 ease-couture ${
+            hasSecondary ? "group-hover:opacity-0" : ""
+          }`}
         />
+        {hasSecondary && (
+          <ProductImage
+            src={product.images[1]}
+            alt={`${product.name} — góc nhìn thứ hai`}
+            seed={`${product.id}-alt`}
+            priority={false}
+            className="absolute inset-0 h-full w-full object-cover opacity-0 transition-opacity duration-700 ease-couture group-hover:opacity-100"
+          />
+        )}
         {product.badges.length > 0 && (
-          <div className="absolute top-4 left-4 flex flex-wrap gap-2">
+          <div className="absolute top-4 left-4 z-10 flex flex-wrap gap-2">
             {product.badges.slice(0, 2).map((b) => (
               <Badge key={b} tone="neutral">
                 {b}
@@ -40,7 +52,7 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
           </div>
         )}
         {totalStock === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center bg-sand-50/75">
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-sand-50/75 backdrop-blur-[1px]">
             <span className="border-1 border-ink-900/20 rounded-hair px-3 py-1 text-eyebrow uppercase tracking-[0.16em] text-ink-900">
               Tạm hết hàng
             </span>

@@ -29,6 +29,7 @@ export default function ContactPage() {
             <a
               className="flex items-center justify-between rounded-hair border-1 border-sand-300 bg-sand-100 p-6 transition-all hover:border-ink-900 hover:bg-sand-50"
               href={`tel:${SITE.hotline}`}
+              aria-label={`Hotline hỗ trợ: ${SITE.hotlineDisplay}`}
             >
               <div className="flex items-center gap-4">
                 <div className="p-3 rounded-hair bg-white shadow-sm">
@@ -46,6 +47,7 @@ export default function ContactPage() {
               href={ZALO_URL}
               target="_blank"
               rel="noreferrer noopener"
+              aria-label="Kết nối Zalo chính thức"
             >
               <div className="flex items-center gap-4">
                 <div className="p-3 rounded-hair bg-white shadow-sm">

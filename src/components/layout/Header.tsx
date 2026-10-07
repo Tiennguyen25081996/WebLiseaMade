@@ -1,5 +1,5 @@
 import { Link, NavLink } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { SITE } from "@/data/site";
 import { useCart } from "@/context/cart-context";
 import { CartIcon, CloseIcon, MenuIcon } from "@/components/ui/icons";
@@ -13,18 +13,34 @@ const NAV = [
 
 /**
  * Header bar editorial: hairline, micro-tracking, underline reveal.
- * Không pill nav, không fill highlight — active = ink, inactive = stone.
+ * Tích hợp dynamic blur khi scroll và badge-pop animation.
  */
 export function Header() {
   const { itemCount } = useCart();
   const [open, setOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 20);
+    };
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   return (
-    <header className="sticky top-0 z-40 border-b-1 border-sand-200 bg-sand-50/92 backdrop-blur-md">
+    <header
+      className={`sticky top-0 z-40 transition-all duration-500 ease-editorial ${
+        scrolled
+          ? "border-b border-sand-200/90 bg-sand-50/95 backdrop-blur-xl shadow-[0_4px_24px_rgba(28,26,24,0.04)]"
+          : "border-b border-transparent bg-sand-50/60 backdrop-blur-sm"
+      }`}
+    >
       <div className="container-page flex h-16 items-center gap-6">
         <Link
           to="/"
-          className="font-display text-lg tracking-[0.01em] text-ink-900"
+          className="font-display text-lg tracking-[0.01em] text-ink-900 transition-opacity hover:opacity-85"
         >
           {SITE.brand}
         </Link>
@@ -49,12 +65,15 @@ export function Header() {
         <div className="ml-auto flex items-center gap-4">
           <Link
             to="/gio-hang"
-            className="relative p-2 text-ink-700"
+            className="tap-feedback relative p-2 text-ink-700 transition-colors hover:text-ink-900"
             aria-label={`Giỏ hàng, ${itemCount} sản phẩm`}
           >
             <CartIcon className="h-5 w-5" />
             {itemCount > 0 && (
-              <span className="absolute -top-0.5 -right-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-ink-900 px-1 text-2xs font-medium tabular-nums text-sand-50">
+              <span
+                key={itemCount}
+                className="absolute -top-0.5 -right-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-ink-900 px-1 text-2xs font-medium tabular-nums text-sand-50 animate-badge-pop shadow-sm"
+              >
                 {itemCount > 99 ? "99+" : itemCount}
               </span>
             )}

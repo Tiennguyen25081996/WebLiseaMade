@@ -77,6 +77,13 @@ describe("hydrateLines", () => {
     expect(droppedLineIds).toEqual(["ao-test::xxl"]);
   });
 
+  it("loại dòng khi biến thể thuộc sản phẩm khác chứ không thuộc sản phẩm này", () => {
+    // "m" thuộc "ao-test", nhưng gọi với "tui-test"
+    const { lines, droppedLineIds } = hydrateLines([line("tui-test", "m", 1)], catalog);
+    expect(lines).toHaveLength(0);
+    expect(droppedLineIds).toEqual(["tui-test::m"]);
+  });
+
   it("loại dòng có quantity không hợp lệ (dữ liệu localStorage bị sửa tay)", () => {
     const { lines, droppedLineIds } = hydrateLines(
       [line("ao-test", "m", 0), line("ao-test", "m", -5), line("ao-test", "m", Number.NaN)],

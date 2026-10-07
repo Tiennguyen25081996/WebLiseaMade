@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCart } from "@/context/cart-context";
-import { generateOrderCode, hasErrors, saveOrder, validateCheckout, type CheckoutErrors } from "@/lib/orders";
+import { generateOrderCode, hasErrors, validateCheckout, type CheckoutErrors } from "@/lib/orders";
+import { createOrderApi, trackCustomerEvent } from "@/lib/api";
 import type { CheckoutInfo, PaymentMethod, PlacedOrder } from "@/types";
 import { Button } from "@/components/ui/Button";
 import { CartSummary } from "@/components/cart/CartSummary";
@@ -106,10 +107,17 @@ export default function CheckoutPage() {
         info,
       };
       
-      if (!saveOrder(order)) {
+      const res = await createOrderApi(order);
+      if (!res.success) {
         setSaveFailed(true);
       } else {
         setSaveFailed(false);
+        trackCustomerEvent("place_order", {
+          orderCode: code,
+          total: cart.totals.total,
+          itemCount: cart.itemCount,
+          syncedToRemote: res.syncedToRemote,
+        });
         cart.clear();
         navigate(`/dat-hang-thanh-cong?ma=${code}`);
       }

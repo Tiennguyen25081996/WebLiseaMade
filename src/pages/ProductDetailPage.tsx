@@ -1,5 +1,5 @@
-import { useState, useMemo, useRef } from "react";
-import { useMatch } from "react-router-dom";
+import { useState, useMemo, useRef, useEffect } from "react";
+import { useMatch, useNavigate, Link } from "react-router-dom";
 import { useCart } from "@/context/cart-context";
 import { PRODUCTS } from "@/data/products";
 import { getCategoryName } from "@/data/categories";
@@ -9,6 +9,7 @@ import { ProductImage } from "@/components/product/ProductImage";
 import { AddToCartButton } from "@/components/cart/AddToCartButton";
 import { QuantityStepper } from "@/components/cart/QuantityStepper";
 import { Button } from "@/components/ui/Button";
+import { trackCustomerEvent } from "@/lib/api";
 
 /**
  * Trang detail sản phẩm (`/san-pham/:slug`).
@@ -16,18 +17,19 @@ import { Button } from "@/components/ui/Button";
  */
 export default function ProductDetailPage() {
   const match = useMatch("/san-pham/:slug");
+  const navigate = useNavigate();
   const slug = match?.params.slug ?? "";
   const product = getProductById(PRODUCTS, slug);
   const cart = useCart();
 
-  const [selectedVariantId] = useState<string | null>(null);
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
 
   if (!product) {
     return (
       <div className="container-page pb-10">
         <h1 className="font-display text-display-lg text-ink-900">Sản phẩm không tìm thấy</h1>
         <p className="mt-2 text-sm text-ink-500">Sản phẩm đã tìm không có trên danh mục.</p>
-        <a href="/san-pham" className="mt-4 inline text-sm text-lagoon-700 underline-reveal">Xem sản phẩm khác</a>
+        <Link to="/san-pham" className="mt-4 inline text-sm text-lagoon-700 underline-reveal">Xem sản phẩm khác</Link>
       </div>
     );
   }
@@ -36,6 +38,18 @@ export default function ProductDetailPage() {
   const defaultVariantId = useMemo(() => {
     return product.variants.find((v) => v.inStock)?.id ?? product.variants[0]?.id ?? null;
   }, [product.variants]);
+
+  // Track customer event khi xem chi tiết sản phẩm
+  useEffect(() => {
+    if (product) {
+      trackCustomerEvent("view_product", {
+        productId: product.id,
+        productName: product.name,
+        category: product.category,
+        price: product.price,
+      });
+    }
+  }, [product]);
 
   const effectiveVariantId = selectedVariantId ?? defaultVariantId;
 
@@ -47,16 +61,11 @@ export default function ProductDetailPage() {
   const inCart = useMemo(() => {
     if (!cart?.lines) return undefined;
     return cart.lines.find((line) => line.productId === product.id && line.variantId === selected.id);
-  }, [cart?.lines, product.id, selected.id]);
+  }, [cart.lines, product.id, selected.id]);
 
   const related = useMemo(() => getRelatedProducts(PRODUCTS, product), [product]);
 
   const productImage = product.images[0] ?? "/placeholder-product.jpg";
-
-  // Build variant display string like Figma: "S · M · L · XL (hết hàng)"
-  const variantLabels = product.variants.map((v) => 
-    v.inStock ? v.label : `${v.label} (hết hàng)`
-  ).join(" · ");
 
   const discountPercent = product.compareAtPrice 
     ? Math.round(((product.compareAtPrice - product.price) / product.compareAtPrice) * 100)
@@ -78,9 +87,9 @@ export default function ProductDetailPage() {
       {/* Header breadcrumb */}
       <nav className="mb-8" aria-label="Breadcrumb">
         <ol className="flex items-center gap-2 text-eyebrow text-ink-500">
-          <li><a href="/" className="hover:text-ink-900 underline-reveal">Trang chủ</a></li>
+          <li><Link to="/" className="hover:text-ink-900 underline-reveal">Trang chủ</Link></li>
           <li className="text-ink-300">/</li>
-          <li><a href="/san-pham" className="hover:text-ink-900 underline-reveal">Sản phẩm</a></li>
+          <li><Link to="/san-pham" className="hover:text-ink-900 underline-reveal">Sản phẩm</Link></li>
           <li className="text-ink-300">/</li>
           <li className="text-ink-900" aria-current="page">{product.name}</li>
         </ol>
@@ -108,8 +117,8 @@ export default function ProductDetailPage() {
             </span>
           )}
 
-          {/* Product Name - Fraunces 56px (-0.03em tracking per style_adca7344) */}
-          <h1 className="font-display text-[56px] leading-[1.15] tracking-[-0.03em] text-ink-900 mb-4">
+          {/* Product Name - Responsive font size (28px mobile, 56px desktop) */}
+          <h1 className="font-display text-2xl sm:text-4xl lg:text-[56px] leading-[1.15] tracking-[-0.03em] text-ink-900 mb-4">
             {product.name}
           </h1>
 
@@ -145,13 +154,35 @@ export default function ProductDetailPage() {
             </p>
           )}
 
-          {/* Variants Display - Text only, not interactive pills */}
-          <p className="text-[17px] font-medium text-ink-900 mb-8 max-w-[500px]">
-            {variantLabels}
-          </p>
+          {/* Variants Selector */}
+          <div className="mb-8 max-w-[500px]">
+            <p className="text-sm font-medium text-ink-700 mb-2">Phân loại / Kích thước:</p>
+            <div className="flex flex-wrap gap-2.5">
+              {product.variants.map((v) => {
+                const isSelected = v.id === selected.id;
+                return (
+                  <button
+                    key={v.id}
+                    type="button"
+                    onClick={() => setSelectedVariantId(v.id)}
+                    disabled={!v.inStock}
+                    className={`tap-feedback min-h-[44px] min-w-[48px] px-4 py-2 text-xs uppercase tracking-[0.08em] font-medium rounded-hair border transition-all duration-300 ease-editorial ${
+                      isSelected
+                        ? "border-ink-900 bg-ink-900 text-sand-50 shadow-sm scale-[1.02]"
+                        : v.inStock
+                          ? "border-sand-300 bg-sand-50 text-ink-700 hover:border-ink-900/60 hover:bg-sand-100"
+                          : "border-sand-200 bg-sand-100 text-ink-300 cursor-not-allowed line-through"
+                    }`}
+                  >
+                    {v.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
-          {/* Action Buttons - Two buttons side by side: 240x48 each */}
-          <div className="flex items-center gap-4 mb-6">
+          {/* Action Buttons - Responsive: full-width stack on mobile, 240px side-by-side on desktop */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 mb-6 w-full max-w-[500px]">
             {/* Add to Cart - Ink background */}
             <AddToCartButton
               productId={product.id}
@@ -160,18 +191,18 @@ export default function ProductDetailPage() {
               ariaDisabled={!selected.inStock}
               size="lg"
               label="Thêm vào giỏ →"
-              className="w-[240px] h-[48px] rounded-hair bg-ink-900 text-sand-50 hover:bg-ink-700 text-[18px] font-medium tracking-[0.02em]"
+              className="w-full sm:w-[240px] h-[48px] rounded-hair bg-ink-900 text-sand-50 hover:bg-ink-700 text-base sm:text-[18px] font-medium tracking-[0.02em] flex items-center justify-center tap-feedback"
             />
             
             {/* Buy Now - Lagoon background */}
             <Button
               variant="primary"
               size="lg"
-              className="w-[240px] h-[48px] rounded-hair bg-lagoon-600 text-sand-50 hover:bg-lagoon-700 text-[18px] font-medium tracking-[0.02em]"
+              className="w-full sm:w-[240px] h-[48px] rounded-hair bg-lagoon-600 text-sand-50 hover:bg-lagoon-700 text-base sm:text-[18px] font-medium tracking-[0.02em] flex items-center justify-center tap-feedback"
               onClick={() => {
                 // Add to cart then navigate to checkout
                 cart.addItem(product.id, selected.id, 1);
-                window.location.href = "/thanh-toan";
+                navigate("/thanh-toan");
               }}
               disabled={!selected.inStock}
             >
@@ -246,46 +277,50 @@ export default function ProductDetailPage() {
               aria-label="Sản phẩm liên quan"
             >
               {related.slice(0, 6).map((p, index) => (
-                <article
+                <Link
                   key={p.id}
-                  className="group relative bg-sand-100 rounded-hair overflow-hidden snap-start flex-shrink-0 transition-transform duration-700 ease-couture hover:scale-[1.01]"
-                  style={{
-                    width: '362px',
-                    height: '480px',
-                    flexShrink: 0,
-                  }}
+                  to={`/san-pham/${p.id}`}
+                  className="block snap-start flex-shrink-0"
                 >
-                  <div className="relative aspect-[362/360] overflow-hidden">
-                    <ProductImage
-                      src={p.images[0] ?? "/placeholder-product.jpg"}
-                      alt={p.name}
-                      seed={p.id}
-                      priority={index < 3}
-                      className="h-full w-full object-cover transition-transform duration-[1600ms] ease-couture group-hover:scale-[1.04]"
-                      showPlaceholderNote={false}
-                    />
-                    {p.badges.length > 0 && (
-                      <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
-                        {p.badges.map((badge) => (
-                          <span
-                            key={badge}
-                            className="rounded-hair bg-coral-700/90 px-2 py-0.5 text-eyebrow font-medium text-sand-50"
-                          >
-                            {badge}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <div className="p-5">
-                    <h3 className="font-display text-[22px] leading-[1.2] tracking-[-0.01em] text-ink-900 mb-3 group-hover:text-lagoon-600 transition-colors duration-500 ease-editorial">
-                      {p.name}
-                    </h3>
-                    <div className="flex items-baseline gap-3">
-                      <Price price={p.price} compareAtPrice={p.compareAtPrice} size="md" />
+                  <article
+                    className="group relative bg-sand-100 rounded-hair overflow-hidden transition-transform duration-700 ease-couture hover:scale-[1.01]"
+                    style={{
+                      width: '362px',
+                      height: '480px',
+                    }}
+                  >
+                    <div className="relative aspect-[362/360] overflow-hidden">
+                      <ProductImage
+                        src={p.images[0] ?? "/placeholder-product.jpg"}
+                        alt={p.name}
+                        seed={p.id}
+                        priority={index < 3}
+                        className="h-full w-full object-cover transition-transform duration-[1600ms] ease-couture group-hover:scale-[1.04]"
+                        showPlaceholderNote={false}
+                      />
+                      {p.badges.length > 0 && (
+                        <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
+                          {p.badges.map((badge) => (
+                            <span
+                              key={badge}
+                              className="rounded-hair bg-coral-700/90 px-2 py-0.5 text-eyebrow font-medium text-sand-50"
+                            >
+                              {badge}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                </article>
+                    <div className="p-5">
+                      <h3 className="font-display text-[22px] leading-[1.2] tracking-[-0.01em] text-ink-900 mb-3 group-hover:text-lagoon-600 transition-colors duration-500 ease-editorial">
+                        {p.name}
+                      </h3>
+                      <div className="flex items-baseline gap-3">
+                        <Price price={p.price} compareAtPrice={p.compareAtPrice} size="md" />
+                      </div>
+                    </div>
+                  </article>
+                </Link>
               ))}
             </div>
           </div>
