@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { findOrderByCode } from "@/lib/orders";
+import { getOrderByCodeApi } from "@/lib/api";
+import type { PlacedOrder } from "@/types";
 import { PlacedOrderCard } from "@/components/order/PlacedOrderCard";
 import { Button } from "@/components/ui/Button";
 
@@ -10,7 +11,55 @@ export default function OrderLookupPage() {
   const [codeInput, setCodeInput] = useState(initialCode);
   const [submittedCode, setSubmittedCode] = useState(initialCode);
 
+  const [lookupState, setLookupState] = useState<{
+    loadingCode: string | null;
+    order: PlacedOrder | null;
+    source: "remote" | "local" | "none";
+  }>({
+    loadingCode: null,
+    order: null,
+    source: "none",
+  });
+
   const activeCode = submittedCode.trim();
+
+  useEffect(() => {
+    if (!activeCode) return;
+
+    let isCancelled = false;
+
+    getOrderByCodeApi(activeCode).then((res) => {
+      if (isCancelled) return;
+      if (res.order) {
+        setLookupState({
+          loadingCode: null,
+          order: res.order,
+          source: res.source,
+        });
+      } else {
+        setLookupState({
+          loadingCode: null,
+          order: null,
+          source: "none",
+        });
+      }
+    });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [activeCode]);
+
+  const isLoading = Boolean(activeCode && lookupState.loadingCode === activeCode);
+  const order = lookupState.order;
+  const orderSource = lookupState.source;
+
+  const handleSearch = () => {
+    const code = codeInput.trim();
+    if (!code) return;
+    setLookupState((prev) => ({ ...prev, loadingCode: code }));
+    setSubmittedCode(code);
+  };
 
   // Gate 1: Chưa submit mã
   if (activeCode.length === 0) {
@@ -18,7 +67,7 @@ export default function OrderLookupPage() {
       <div className="container-page pb-10" aria-label="Trang tra cứu đơn">
         <h1 className="font-display text-display-lg text-ink-900">Tra cứu đơn hàng</h1>
         <p className="mt-2 text-sm text-ink-500" id="tra-cuu-intro">
-          Nhập mã đơn bạn muốn tìm kiếm (định dạng: LM-XXXXXX). Mã này được lưu trên trình duyệt của bạn.
+          Nhập mã đơn bạn muốn tìm kiếm (định dạng: LM-XXXXXX).
         </p>
 
         <div className="mt-6 flex flex-col items-start gap-3 max-w-md">
@@ -35,7 +84,7 @@ export default function OrderLookupPage() {
               variant="primary"
               size="md"
               disabled={!codeInput.trim().match(/^LM-[A-HJ-NP-Z0-9]{6}$/i)}
-              onClick={() => setSubmittedCode(codeInput.trim())}
+              onClick={handleSearch}
             >
               Tra cứu · Xác nhận
             </Button>
@@ -45,19 +94,41 @@ export default function OrderLookupPage() {
     );
   }
 
+  // Đang tải dữ liệu từ API
+  if (isLoading) {
+    return (
+      <div className="container-page pb-10 text-center py-20" aria-label="Đang tra cứu">
+        <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-ink-900 border-t-transparent" />
+        <p className="mt-4 text-sm text-ink-600">Đang tra cứu đơn hàng {activeCode}...</p>
+      </div>
+    );
+  }
+
   // Gate 2: Find order or show not found
-  const order = findOrderByCode(activeCode);
-  
   if (order) {
     return (
       <div className="container-page pb-10">
-        <h1 className="font-display text-display-lg text-ink-900">Chi tiết đơn hàng</h1>
-        <p className="mt-2 text-sm text-ink-500">Mã đơn {order.code} · Ngày đặt: {order.createdAt}</p>
+        <div className="flex flex-wrap items-baseline justify-between gap-4">
+          <div>
+            <h1 className="font-display text-display-lg text-ink-900">Chi tiết đơn hàng</h1>
+            <p className="mt-2 text-sm text-ink-500">
+              Mã đơn {order.code} · Ngày đặt: {order.createdAt}
+              {orderSource === "remote" && " (Đã đồng bộ máy chủ)"}
+            </p>
+          </div>
+        </div>
 
         <div className="mt-5"><PlacedOrderCard order={order} /></div>
 
         <div className="mt-6 flex flex-wrap gap-3">
-          <Button variant="secondary" onClick={() => { setSubmittedCode(""); setCodeInput(""); }}>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setSubmittedCode("");
+              setCodeInput("");
+              setLookupState({ loadingCode: null, order: null, source: "none" });
+            }}
+          >
             Tra cứu đơn khác
           </Button>
           <Button to="/san-pham" variant="ghost">Tiếp tục mua sắm →</Button>
@@ -71,7 +142,7 @@ export default function OrderLookupPage() {
     <div className="container-page pb-10" aria-label="Kết quả tra cứu">
       <h1 className="font-display text-display-lg text-ink-900">Không tìm thấy đơn</h1>
       <p className="mt-2 text-sm text-ink-500">
-        Không tìm thấy đơn nào với mã {activeCode}. Đơn có thể đã xoá hoặc lưu trên thiết bị khác.
+        Không tìm thấy đơn nào với mã {activeCode}. Đơn có thể chưa được lưu hoặc nhập sai mã.
       </p>
 
       <div className="mt-6 rounded-hair border-1 border-coral-300 bg-coral-50 p-4" id="not-found">
@@ -81,7 +152,14 @@ export default function OrderLookupPage() {
       </div>
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
-        <Button variant="primary" onClick={() => { setSubmittedCode(""); setCodeInput(""); }}>
+        <Button
+          variant="primary"
+          onClick={() => {
+            setSubmittedCode("");
+            setCodeInput("");
+            setLookupState({ loadingCode: null, order: null, source: "none" });
+          }}
+        >
           Nhập lại mã tra cứu
         </Button>
         <Button to="/san-pham" variant="secondary">Xem sản phẩm</Button>

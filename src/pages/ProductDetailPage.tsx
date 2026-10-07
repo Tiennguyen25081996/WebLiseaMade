@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useMatch, useNavigate, Link } from "react-router-dom";
 import { useCart } from "@/context/cart-context";
 import { PRODUCTS } from "@/data/products";
@@ -9,6 +9,7 @@ import { ProductImage } from "@/components/product/ProductImage";
 import { AddToCartButton } from "@/components/cart/AddToCartButton";
 import { QuantityStepper } from "@/components/cart/QuantityStepper";
 import { Button } from "@/components/ui/Button";
+import { trackCustomerEvent } from "@/lib/api";
 
 /**
  * Trang detail sản phẩm (`/san-pham/:slug`).
@@ -37,6 +38,18 @@ export default function ProductDetailPage() {
   const defaultVariantId = useMemo(() => {
     return product.variants.find((v) => v.inStock)?.id ?? product.variants[0]?.id ?? null;
   }, [product.variants]);
+
+  // Track customer event khi xem chi tiết sản phẩm
+  useEffect(() => {
+    if (product) {
+      trackCustomerEvent("view_product", {
+        productId: product.id,
+        productName: product.name,
+        category: product.category,
+        price: product.price,
+      });
+    }
+  }, [product]);
 
   const effectiveVariantId = selectedVariantId ?? defaultVariantId;
 

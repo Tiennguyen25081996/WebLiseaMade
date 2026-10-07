@@ -1,28 +1,24 @@
-# Cloudflare Workers — Static Assets (Vite SPA)
-# Repo là SPA tĩnh: `npm run build` build vào thư mục dist/ rồi deploy lên đây.
-# KHÔNG khai báo `main` — nếu trỏ vào file Worker không tồn tại thì `wrangler deploy` sẽ fail.
-
-name = "lisea-made-web"
-compatibility_date = "2024-01-01"
+# Cloudflare Workers — Fullstack (Static Assets + D1 API Worker)
+name = "web-lisea-made"
+main = "server/index.ts"
+compatibility_date = "2026-10-05"
 compatibility_flags = ["nodejs_compat"]
 
 [assets]
-# Build output của Vite (chạy `npm run build` trước khi deploy).
 directory = "./dist"
-# SPA routing: đường dẫn không khớp file nào (vd /san-pham/xxx) trả về index.html
-# để react-router tự xử lý, tránh lỗi 404 khi refresh trang.
 not_found_handling = "single-page-application"
+binding = "ASSETS"
 
 [vars]
 NODE_ENV = "production"
 
-# ⚠️ D1 Database — CHƯA kích hoạt. Muốn bật thì:
-#   1. Tạo database trên Dashboard → lấy database_id thật (thay YOUR_DATABASE_ID_HERE).
-#   2. Bỏ comment khối dưới.
-#   3. Thêm file Worker (vd src/index.ts) và khai báo `main = "src/index.ts"`
-#      vì binding D1 cần một Worker script đọc env.DB.
-# [[d1_databases]]
-# binding = "DB"
-# database_name = "lisea_made_db"
-# database_id = "YOUR_DATABASE_ID_HERE"
+[[d1_databases]]
+binding = "DB"
+database_name = "prod-d1-tutorial"
+database_id = "d4158e2f-9580-47f6-844d-8127fb970b09"
+
+[[d1_databases]]
+binding = "prod_d1_tutorial"
+database_name = "prod-d1-tutorial"
+database_id = "d4158e2f-9580-47f6-844d-8127fb970b09"
 

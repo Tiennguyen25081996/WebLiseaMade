@@ -10,6 +10,7 @@ import {
   hydrateLines,
 } from "@/lib/cart-pricing";
 import { safeStorage } from "@/lib/orders";
+import { trackCustomerEvent } from "@/lib/api";
 
 /** Key localStorage — theo công ước ở CONTRACT.md mục 4. */
 export const CART_STORAGE_KEY = "liseamade.cart.v1";
@@ -94,6 +95,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
       addItem: (productId, variantId, quantity = 1) => {
         const q = clampQuantity(quantity);
         if (q === 0) return;
+        trackCustomerEvent("add_to_cart", {
+          productId,
+          variantId,
+          quantity: q,
+        });
         setState((prev) => {
           const key = lineKey(productId, variantId);
           const index = prev.rawLines.findIndex(
