@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import AdminBoardPage from "./AdminBoardPage";
 
@@ -61,5 +61,46 @@ describe("AdminBoardPage", () => {
 
     expect(screen.getByText("Thêm sản phẩm mới")).toBeInTheDocument();
     expect(screen.getByLabelText(/Tên sản phẩm/i)).toBeInTheDocument();
+  });
+
+  it("chuyển tab sang Ảnh Cloudflare (Media) và hiển thị khu vực tải ảnh", async () => {
+    render(
+      <MemoryRouter>
+        <AdminBoardPage />
+      </MemoryRouter>
+    );
+
+    const mediaTabBtn = screen.getByRole("button", { name: /Ảnh Cloudflare/ });
+    fireEvent.click(mediaTabBtn);
+
+    expect(screen.getByText("Cloudflare Media Hub")).toBeInTheDocument();
+    expect(screen.getByText(/Kéo thả ảnh vào đây hoặc nhấp để tải lên/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /\+ Chọn ảnh từ máy/ })).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.queryByText("Đang đồng bộ ảnh từ Cloudflare...")).not.toBeInTheDocument();
+    });
+  });
+
+  it("mở modal Cloudflare Media Picker từ form thêm sản phẩm", async () => {
+    render(
+      <MemoryRouter>
+        <AdminBoardPage />
+      </MemoryRouter>
+    );
+
+    const addProductBtn = screen.getByRole("button", { name: "+ Thêm sản phẩm" });
+    fireEvent.click(addProductBtn);
+
+    const openPickerBtn = screen.getByRole("button", { name: /Tải \/ Chọn từ Cloudflare/i });
+    fireEvent.click(openPickerBtn);
+
+    expect(
+      screen.getByText(/Tải ảnh mới hoặc bấm "Chọn" trên ảnh để tự động thêm vào sản phẩm/i)
+    ).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.queryByText("Đang đồng bộ ảnh từ Cloudflare...")).not.toBeInTheDocument();
+    });
   });
 });

@@ -38,6 +38,8 @@ export default function App() {
           <Route path="/gioi-thieu" element={<AboutPage />} />
           <Route path="/lien-he" element={<ContactPage />} />
           <Route path="/admin" element={<AdminBoardPage />} />
+          <Route path="/admin/media" element={<AdminBoardPage />} />
+          <Route path="/admin/upload" element={<AdminBoardPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>

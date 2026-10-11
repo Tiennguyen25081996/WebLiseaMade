@@ -55,3 +55,17 @@ CREATE TABLE IF NOT EXISTS customer_events (
 
 -- Chỉ mục lọc sự kiện theo loại và thời gian
 CREATE INDEX IF NOT EXISTS idx_customer_events_type_created ON customer_events(event_type, created_at);
+
+-- Bảng lưu trữ ảnh tải lên Cloudflare / Media library
+CREATE TABLE IF NOT EXISTS media_files (
+  id TEXT PRIMARY KEY,
+  filename TEXT NOT NULL,
+  mime_type TEXT NOT NULL,
+  size INTEGER NOT NULL CHECK (size >= 0),
+  url TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  data TEXT
+);
+
+-- Chỉ mục tối ưu sắp xếp ảnh theo thời gian tải lên
+CREATE INDEX IF NOT EXISTS idx_media_files_created ON media_files(created_at DESC);

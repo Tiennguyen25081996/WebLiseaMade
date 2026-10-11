@@ -25,6 +25,12 @@ function createMockDb(): { db: D1Database; execCalls: string[]; batchCalls: D1Pr
           updated_at: "2026-10-11T00:00:00Z",
         } as T;
       }
+      if (sql.includes("FROM media_files WHERE id = ?")) {
+        return {
+          mime_type: "image/png",
+          data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+        } as T;
+      }
       return null;
     },
     async all<T = Record<string, unknown>>() {
@@ -43,6 +49,21 @@ function createMockDb(): { db: D1Database; execCalls: string[]; batchCalls: D1Pr
               price: 100000,
               quantity: 1,
               line_total: 100000,
+            },
+          ] as T[],
+        };
+      }
+      if (sql.includes("FROM media_files")) {
+        return {
+          success: true,
+          results: [
+            {
+              id: "img_1",
+              filename: "sample.png",
+              mime_type: "image/png",
+              size: 256,
+              url: "/api/images/img_1",
+              created_at: "2026-10-11T00:00:00Z",
             },
           ] as T[],
         };
@@ -192,6 +213,63 @@ describe("server worker and D1 schema", () => {
     expect(data.success).toBe(true);
     // S6: SQL should reference ip_hash column, not ip
     expect(execCalls.some((sql) => sql.includes("ip_hash"))).toBe(true);
+  });
+
+  it("POST /api/upload uploads image base64 and saves to media_files", async () => {
+    const { db, execCalls } = createMockDb();
+    const env: Env = { DB: db };
+
+    const req = new Request("http://localhost/api/upload", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        filename: "test.png",
+        mimeType: "image/png",
+        file: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+      }),
+    });
+
+    const res = await worker.fetch(req, env);
+    expect(res.status).toBe(201);
+    const data = (await res.json()) as { success: boolean; image: { id: string; url: string } };
+    expect(data.success).toBe(true);
+    expect(data.image.url).toContain("/api/images/");
+    expect(execCalls.some((sql) => sql.includes("INSERT INTO media_files"))).toBe(true);
+  });
+
+  it("GET /api/images lists uploaded images", async () => {
+    const { db } = createMockDb();
+    const env: Env = { DB: db };
+
+    const req = new Request("http://localhost/api/images", { method: "GET" });
+    const res = await worker.fetch(req, env);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { success: boolean; images: unknown[] };
+    expect(data.success).toBe(true);
+    expect(data.images.length).toBe(1);
+  });
+
+  it("GET /api/images/:id returns binary image response with proper headers", async () => {
+    const { db } = createMockDb();
+    const env: Env = { DB: db };
+
+    const req = new Request("http://localhost/api/images/img_1", { method: "GET" });
+    const res = await worker.fetch(req, env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("image/png");
+    expect(res.headers.get("Cache-Control")).toContain("immutable");
+  });
+
+  it("DELETE /api/images/:id removes image from media_files", async () => {
+    const { db, execCalls } = createMockDb();
+    const env: Env = { DB: db };
+
+    const req = new Request("http://localhost/api/images/img_1", { method: "DELETE" });
+    const res = await worker.fetch(req, env);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { success: boolean; id: string };
+    expect(data.success).toBe(true);
+    expect(execCalls.some((sql) => sql.includes("DELETE FROM media_files"))).toBe(true);
   });
 
   it("returns 500 when no DB binding", async () => {

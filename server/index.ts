@@ -128,6 +128,16 @@ export async function initDb(db: D1Database): Promise<void> {
         created_at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_customer_events_type_created ON customer_events(event_type, created_at);
+      CREATE TABLE IF NOT EXISTS media_files (
+        id TEXT PRIMARY KEY,
+        filename TEXT NOT NULL,
+        mime_type TEXT NOT NULL,
+        size INTEGER NOT NULL CHECK (size >= 0),
+        url TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        data TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_media_files_created ON media_files(created_at DESC);
     `);
     dbInitialized = true;
   } catch (err) {
@@ -159,10 +169,33 @@ function jsonResponse(data: unknown, status = 200): Response {
     headers: {
       "Content-Type": "application/json; charset=utf-8",
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type",
     },
   });
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const len = bytes.byteLength;
+  const chunkSize = 8192;
+  for (let i = 0; i < len; i += chunkSize) {
+    const chunk = bytes.subarray(i, Math.min(i + chunkSize, len));
+    binary += String.fromCharCode.apply(null, chunk as unknown as number[]);
+  }
+  return btoa(binary);
+}
+
+function base64ToUint8Array(base64: string): Uint8Array {
+  const clean = base64.replace(/^data:[^;]+;base64,/, "");
+  const binaryString = atob(clean);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
 }
 
 export default {
@@ -357,6 +390,128 @@ export default {
             .run();
 
           return jsonResponse({ success: true, loggedAt: createdAt }, 201);
+        }
+
+        // POST /api/upload - Tải ảnh lên Cloudflare / D1
+        if (url.pathname === "/api/upload" && request.method === "POST") {
+          const contentType = request.headers.get("Content-Type") || "";
+          let filename = "image.png";
+          let mimeType = "image/png";
+          let size = 0;
+          let base64Data = "";
+
+          if (contentType.includes("multipart/form-data")) {
+            const formData = await request.formData().catch(() => null);
+            if (!formData) {
+              return jsonResponse({ success: false, error: "Không đọc được formData" }, 400);
+            }
+            const file = formData.get("file");
+            if (!file || typeof file === "string") {
+              return jsonResponse({ success: false, error: "Thiếu file ảnh trong formData" }, 400);
+            }
+            const f = file as File;
+            filename = f.name || "uploaded.png";
+            mimeType = f.type || "image/png";
+            size = f.size;
+            const buffer = await f.arrayBuffer();
+            base64Data = arrayBufferToBase64(buffer);
+          } else {
+            // JSON fallback: { file: base64, filename: string, mimeType: string }
+            const json = (await request.json().catch(() => null)) as {
+              file?: string;
+              filename?: string;
+              mimeType?: string;
+            } | null;
+
+            if (!json || !json.file) {
+              return jsonResponse({ success: false, error: "Thiếu dữ liệu file" }, 400);
+            }
+
+            filename = json.filename || "uploaded.png";
+            mimeType = json.mimeType || "image/png";
+            base64Data = json.file.replace(/^data:[^;]+;base64,/, "");
+            size = Math.round((base64Data.length * 3) / 4);
+          }
+
+          if (!mimeType.startsWith("image/")) {
+            return jsonResponse({ success: false, error: "Định dạng file không phải là hình ảnh" }, 400);
+          }
+
+          // Giới hạn 10MB
+          if (size > 10 * 1024 * 1024) {
+            return jsonResponse({ success: false, error: "Dung lượng ảnh vượt quá giới hạn 10MB" }, 400);
+          }
+
+          const imageId = `img_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+          const createdAt = new Date().toISOString();
+          const publicUrl = `/api/images/${imageId}`;
+
+          await db
+            .prepare(
+              `INSERT INTO media_files (id, filename, mime_type, size, url, created_at, data)
+               VALUES (?, ?, ?, ?, ?, ?, ?)`
+            )
+            .bind(imageId, filename, mimeType, size, publicUrl, createdAt, base64Data)
+            .run();
+
+          return jsonResponse(
+            {
+              success: true,
+              image: {
+                id: imageId,
+                filename,
+                mimeType,
+                size,
+                url: publicUrl,
+                createdAt,
+              },
+            },
+            201,
+          );
+        }
+
+        // GET /api/images - Danh sách ảnh đã upload
+        if (url.pathname === "/api/images" && request.method === "GET") {
+          const result = await db
+            .prepare(
+              "SELECT id, filename, mime_type, size, url, created_at FROM media_files ORDER BY created_at DESC LIMIT 100"
+            )
+            .all();
+
+          return jsonResponse({
+            success: true,
+            images: result.results || [],
+          });
+        }
+
+        // GET /api/images/:id - Trả về dữ liệu ảnh binary
+        if (url.pathname.startsWith("/api/images/") && request.method === "GET") {
+          const imageId = decodeURIComponent(url.pathname.replace("/api/images/", "")).trim();
+          const record = await db
+            .prepare("SELECT mime_type, data FROM media_files WHERE id = ?")
+            .bind(imageId)
+            .first<{ mime_type: string; data: string }>();
+
+          if (!record || !record.data) {
+            return jsonResponse({ success: false, error: "Không tìm thấy hình ảnh" }, 404);
+          }
+
+          const binary = base64ToUint8Array(record.data);
+          return new Response(binary as unknown as BodyInit, {
+            status: 200,
+            headers: {
+              "Content-Type": record.mime_type || "image/png",
+              "Cache-Control": "public, max-age=31536000, immutable",
+              "Access-Control-Allow-Origin": "*",
+            },
+          });
+        }
+
+        // DELETE /api/images/:id - Xóa ảnh
+        if (url.pathname.startsWith("/api/images/") && request.method === "DELETE") {
+          const imageId = decodeURIComponent(url.pathname.replace("/api/images/", "")).trim();
+          await db.prepare("DELETE FROM media_files WHERE id = ?").bind(imageId).run();
+          return jsonResponse({ success: true, id: imageId });
         }
 
         return jsonResponse({ success: false, error: "API route not found" }, 404);

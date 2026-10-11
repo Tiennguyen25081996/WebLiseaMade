@@ -14,6 +14,7 @@ function apiDevPlugin(): Plugin {
   const dataDir = path.resolve(import.meta.dirname, ".data");
   const ordersFile = path.join(dataDir, "orders.json");
   const eventsFile = path.join(dataDir, "events.json");
+  const mediaFile = path.join(dataDir, "media.json");
 
   const readJson = (file: string): unknown[] => {
     try {
@@ -96,6 +97,116 @@ function apiDevPlugin(): Plugin {
               res.end(JSON.stringify({ success: true }));
             }
           });
+          return;
+        }
+
+        // POST /api/upload
+        if (pathname === "/api/upload" && req.method === "POST") {
+          let body = "";
+          req.on("data", (chunk) => { body += chunk; });
+          req.on("end", () => {
+            try {
+              const json = JSON.parse(body);
+              const imageId = `img_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+              const filename = json.filename || "uploaded.png";
+              const mimeType = json.mimeType || "image/png";
+              const base64Data = (json.file || "").replace(/^data:[^;]+;base64,/, "");
+              const size = Math.round((base64Data.length * 3) / 4);
+              const publicUrl = `/api/images/${imageId}`;
+              const createdAt = new Date().toISOString();
+
+              const imageItem = {
+                id: imageId,
+                filename,
+                mime_type: mimeType,
+                size,
+                url: publicUrl,
+                created_at: createdAt,
+                data: base64Data,
+              };
+
+              const mediaList = readJson(mediaFile) as Array<typeof imageItem>;
+              mediaList.unshift(imageItem);
+              writeJson(mediaFile, mediaList);
+
+              res.setHeader("Content-Type", "application/json");
+              res.statusCode = 201;
+              res.end(
+                JSON.stringify({
+                  success: true,
+                  image: {
+                    id: imageId,
+                    filename,
+                    mimeType,
+                    size,
+                    url: publicUrl,
+                    createdAt,
+                  },
+                })
+              );
+            } catch (err) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ success: false, error: String(err) }));
+            }
+          });
+          return;
+        }
+
+        // GET /api/images
+        if (pathname === "/api/images" && req.method === "GET") {
+          const mediaList = readJson(mediaFile) as Array<{
+            id: string;
+            filename: string;
+            mime_type: string;
+            size: number;
+            url: string;
+            created_at: string;
+          }>;
+          const sanitized = mediaList.map(({ id, filename, mime_type, size, url, created_at }) => ({
+            id,
+            filename,
+            mime_type,
+            size,
+            url,
+            created_at,
+          }));
+          res.setHeader("Content-Type", "application/json");
+          res.statusCode = 200;
+          res.end(JSON.stringify({ success: true, images: sanitized }));
+          return;
+        }
+
+        // GET /api/images/:id
+        if (pathname.startsWith("/api/images/") && req.method === "GET") {
+          const imageId = decodeURIComponent(pathname.replace("/api/images/", "")).trim();
+          const mediaList = readJson(mediaFile) as Array<{
+            id: string;
+            mime_type: string;
+            data: string;
+          }>;
+          const found = mediaList.find((m) => m.id === imageId);
+          if (found && found.data) {
+            const buffer = Buffer.from(found.data, "base64");
+            res.setHeader("Content-Type", found.mime_type || "image/png");
+            res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+            res.statusCode = 200;
+            res.end(buffer);
+          } else {
+            res.statusCode = 404;
+            res.end(JSON.stringify({ success: false, error: "Image not found" }));
+          }
+          return;
+        }
+
+        // DELETE /api/images/:id
+        if (pathname.startsWith("/api/images/") && req.method === "DELETE") {
+          const imageId = decodeURIComponent(pathname.replace("/api/images/", "")).trim();
+          const mediaList = readJson(mediaFile) as Array<{ id: string }>;
+          const filtered = mediaList.filter((m) => m.id !== imageId);
+          writeJson(mediaFile, filtered);
+          res.setHeader("Content-Type", "application/json");
+          res.statusCode = 200;
+          res.end(JSON.stringify({ success: true, id: imageId }));
           return;
         }
 

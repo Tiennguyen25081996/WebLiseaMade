@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import {
   useAdminStore,
   type DiscountEvent,
@@ -14,13 +14,21 @@ import {
   SearchIcon,
   SparkleIcon,
   PackageIcon,
+  UploadIcon,
 } from "@/components/ui/icons";
+import { CloudflareImageUploader } from "@/components/admin/CloudflareImageUploader";
 
-type AdminTab = "products" | "categories" | "discounts";
+type AdminTab = "products" | "categories" | "discounts" | "media";
 
 const DEFAULT_SIZES = ["S", "M", "L", "XL", "Free size"];
 
 export default function AdminBoardPage() {
+  const location = useLocation();
+  const initialTab: AdminTab =
+    location.pathname.includes("media") || location.pathname.includes("upload")
+      ? "media"
+      : "products";
+
   const {
     products,
     categories,
@@ -35,7 +43,7 @@ export default function AdminBoardPage() {
     resetToDefaults,
   } = useAdminStore();
 
-  const [currentTab, setCurrentTab] = useState<AdminTab>("products");
+  const [currentTab, setCurrentTab] = useState<AdminTab>(initialTab);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Search & Filter
@@ -45,6 +53,7 @@ export default function AdminBoardPage() {
   // Modals state
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+  const [isMediaPickerOpen, setIsMediaPickerOpen] = useState(false);
 
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
@@ -351,7 +360,7 @@ export default function AdminBoardPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="rounded-hair border border-sand-300 bg-sand-100 p-5">
           <div className="flex items-center justify-between text-ink-500 text-xs">
             <span>Sản phẩm</span>
@@ -381,6 +390,15 @@ export default function AdminBoardPage() {
             {discounts.filter((d) => d.isActive).length} / {discounts.length}
           </div>
           <div className="mt-1 text-2xs text-ink-500">Chương trình khuyến mãi đang chạy</div>
+        </div>
+
+        <div className="rounded-hair border border-sand-300 bg-sand-100 p-5">
+          <div className="flex items-center justify-between text-ink-500 text-xs">
+            <span>Cloudflare Media</span>
+            <UploadIcon className="h-4 w-4 text-lagoon-700" />
+          </div>
+          <div className="mt-2 text-3xl font-display text-ink-900">Cloud</div>
+          <div className="mt-1 text-2xs text-ink-500">Lưu trữ ảnh D1 / Images CDN</div>
         </div>
       </div>
 
@@ -419,6 +437,17 @@ export default function AdminBoardPage() {
             }`}
           >
             Sự kiện giảm giá ({discounts.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setCurrentTab("media")}
+            className={`rounded-hair px-4 py-2 text-xs font-medium transition-all ${
+              currentTab === "media"
+                ? "bg-ink-900 text-sand-50"
+                : "bg-sand-100 text-ink-700 hover:bg-sand-200"
+            }`}
+          >
+            Ảnh Cloudflare (Media)
           </button>
         </div>
 
@@ -746,6 +775,15 @@ export default function AdminBoardPage() {
       )}
 
       {/* =========================================================================
+       * TAB 4: QUẢN LÝ ẢNH CLOUDFLARE (MEDIA HUB)
+       * ========================================================================= */}
+      {currentTab === "media" && (
+        <div className="mt-6">
+          <CloudflareImageUploader />
+        </div>
+      )}
+
+      {/* =========================================================================
        * MODAL 1: THÊM / SỬA SẢN PHẨM
        * ========================================================================= */}
       {isProductModalOpen && (
@@ -929,7 +967,17 @@ export default function AdminBoardPage() {
               </div>
 
               <div>
-                <label htmlFor="prod-images" className="block font-medium text-ink-700 mb-1">Đường dẫn ảnh (mỗi dòng 1 URL)</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label htmlFor="prod-images" className="block font-medium text-ink-700">Đường dẫn ảnh (mỗi dòng 1 URL)</label>
+                  <button
+                    type="button"
+                    onClick={() => setIsMediaPickerOpen(true)}
+                    className="inline-flex items-center gap-1 text-[11px] font-medium text-lagoon-700 hover:text-lagoon-800 transition-colors"
+                  >
+                    <UploadIcon className="h-3 w-3" />
+                    <span>Tải / Chọn từ Cloudflare</span>
+                  </button>
+                </div>
                 <textarea
                   id="prod-images"
                   rows={2}
@@ -953,6 +1001,44 @@ export default function AdminBoardPage() {
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+       * MODAL CHỌN ẢNH CLOUDFLARE CHO SẢN PHẨM
+       * ========================================================================= */}
+      {isMediaPickerOpen && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-ink-900/60 p-4 backdrop-blur-xs">
+          <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-hair bg-sand-50 p-6 shadow-2xl border border-sand-300 animate-reveal-up">
+            <div className="flex items-center justify-between border-b border-sand-200 pb-3 mb-4">
+              <div>
+                <h2 className="font-display text-lg text-ink-900">
+                  Thư viện ảnh Cloudflare
+                </h2>
+                <p className="text-xs text-ink-500">
+                  Tải ảnh mới hoặc bấm "Chọn" trên ảnh để tự động thêm vào sản phẩm.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMediaPickerOpen(false)}
+                className="text-ink-500 hover:text-ink-900"
+              >
+                <CloseIcon className="h-5 w-5" />
+              </button>
+            </div>
+
+            <CloudflareImageUploader
+              onSelectImage={(url) => {
+                setProdForm((prev) => ({
+                  ...prev,
+                  images: prev.images.trim() ? `${prev.images.trim()}\n${url}` : url,
+                }));
+                setIsMediaPickerOpen(false);
+                showToast("Đã chèn ảnh vào danh sách ảnh sản phẩm!");
+              }}
+            />
           </div>
         </div>
       )}
