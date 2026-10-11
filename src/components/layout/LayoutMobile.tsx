@@ -114,7 +114,7 @@ function MobileFooter() {
 
   return (
     <footer
-      className="sticky bottom-0 inset-x-0 z-50 w-full border-t border-sand-200/80 luxury-glass pb-[env(safe-area-inset-bottom,0px)]"
+      className="fixed bottom-0 inset-x-0 z-50 w-full border-t border-sand-200/90 bg-sand-50/95 backdrop-blur-xl shadow-[0_-4px_20px_rgba(28,26,24,0.06)] pb-[env(safe-area-inset-bottom,0px)]"
       aria-label="Điều hướng chính di động"
     >
       <nav className="grid grid-cols-5 h-16 w-full max-w-md mx-auto px-1 items-stretch">
@@ -174,11 +174,11 @@ function MobileFooter() {
 
 function LayoutMobileWrapper() {
   return (
-    <section className="mobile-layout min-h-screen flex flex-col bg-sand-50 w-full" aria-label="Nội dung di động">
+    <section className="mobile-layout min-h-[100dvh] flex flex-col bg-sand-50 w-full" aria-label="Nội dung di động">
       <MobileHeader />
       
       {/* Mobile content container — Max width constrained for editorial mobile */}
-      <main id="nout-content-mobile" className="flex-1 w-full max-w-md mx-auto px-3 pb-20 md:hidden">
+      <main id="nout-content-mobile" className="flex-1 w-full max-w-md mx-auto px-3 pb-[calc(5rem+env(safe-area-inset-bottom,0px))] md:hidden">
         <Outlet />
       </main>
 
