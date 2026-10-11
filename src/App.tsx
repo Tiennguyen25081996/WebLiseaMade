@@ -6,6 +6,7 @@
 
 import { Route, Routes } from "react-router-dom";
 import { Layout } from "./components/layout/Layout";
+import { ScrollToTop } from "./components/layout/ScrollToTop";
 
 // Page components are rendered inside Layout which handles responsive switch
 import HomePage from "./pages/HomePage";
@@ -21,20 +22,23 @@ import NotFoundPage from "./pages/NotFoundPage";
 
 export default function App() {
   return (
-    <Routes>
-      {/* ALL routes wrapped in Layout for mobile/desktop switching */}
-      <Route element={<Layout />}>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/san-pham" element={<CatalogPage />} />
-        <Route path="/san-pham/:slug" element={<ProductDetailPage />} />
-        <Route path="/gio-hang" element={<CartPage />} />
-        <Route path="/thanh-toan" element={<CheckoutPage />} />
-        <Route path="/dat-hang-thanh-cong" element={<OrderSuccessPage />} />
-        <Route path="/tra-cuu-don" element={<OrderLookupPage />} />
-        <Route path="/gioi-thieu" element={<AboutPage />} />
-        <Route path="/lien-he" element={<ContactPage />} />
-        <Route path="*" element={<NotFoundPage />} />
-      </Route>
-    </Routes>
+    <>
+      <ScrollToTop />
+      <Routes>
+        {/* ALL routes wrapped in Layout for mobile/desktop switching */}
+        <Route element={<Layout />}>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/san-pham" element={<CatalogPage />} />
+          <Route path="/san-pham/:slug" element={<ProductDetailPage />} />
+          <Route path="/gio-hang" element={<CartPage />} />
+          <Route path="/thanh-toan" element={<CheckoutPage />} />
+          <Route path="/dat-hang-thanh-cong" element={<OrderSuccessPage />} />
+          <Route path="/tra-cuu-don" element={<OrderLookupPage />} />
+          <Route path="/gioi-thieu" element={<AboutPage />} />
+          <Route path="/lien-he" element={<ContactPage />} />
+          <Route path="*" element={<NotFoundPage />} />
+        </Route>
+      </Routes>
+    </>
   );
 }

@@ -39,6 +39,11 @@ export default function ProductDetailPage() {
     return product.variants.find((v) => v.inStock)?.id ?? product.variants[0]?.id ?? null;
   }, [product.variants]);
 
+  // Reset scroll lên đầu trang khi mở hoặc đổi sản phẩm
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [slug]);
+
   // Track customer event khi xem chi tiết sản phẩm
   useEffect(() => {
     if (product) {
