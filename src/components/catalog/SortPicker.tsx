@@ -9,7 +9,7 @@ interface SortPickerProps {
 
 export function SortPicker({ query, onSortChange, className = "" }: SortPickerProps) {
   return (
-    <div className={`relative inline-flex items-center shrink-0 ${className}`}>
+    <div className={`relative flex items-center w-full min-w-0 ${className}`}>
       <label htmlFor="catalog-sort" className="sr-only">
         Sắp xếp theo
       </label>
@@ -21,7 +21,8 @@ export function SortPicker({ query, onSortChange, className = "" }: SortPickerPr
             onSortChange(e.target.value as SortKey);
           }
         }}
-        className="appearance-none bg-sand-50/90 border border-sand-300/80 rounded-full pl-3.5 pr-8 py-2 text-xs md:text-sm font-medium text-ink-800 hover:border-ink-900/60 focus:outline-none focus:border-ink-900 focus:ring-1 focus:ring-ink-900/20 transition-all cursor-pointer shadow-2xs"
+        style={{ WebkitAppearance: "none", MozAppearance: "none" }}
+        className="h-10 w-full appearance-none bg-sand-50/90 border border-sand-300/80 rounded-full pl-3 pr-7 text-base sm:text-sm font-medium text-ink-800 hover:border-ink-900/60 focus:outline-none focus:border-ink-900 focus:ring-1 focus:ring-ink-900/20 transition-all cursor-pointer shadow-2xs truncate"
       >
         {SORT_OPTIONS.map((option) => (
           <option key={option.value} value={option.value}>

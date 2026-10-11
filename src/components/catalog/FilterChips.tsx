@@ -6,10 +6,12 @@ import { countByCategory, toSearchParams } from "@/lib/catalog";
 
 interface FilterChipsProps {
   query: CatalogQuery;
+  isFiltered?: boolean;
+  onReset?: () => void;
   className?: string;
 }
 
-export function FilterChips({ query, className = "" }: FilterChipsProps) {
+export function FilterChips({ query, isFiltered = false, onReset, className = "" }: FilterChipsProps) {
   const isAll = query.category === "all";
 
   return (
@@ -18,6 +20,18 @@ export function FilterChips({ query, className = "" }: FilterChipsProps) {
       aria-label="Chọn nhóm hàng"
       className={`flex items-center gap-1.5 overflow-x-auto scrollbar-hide py-1 ${className}`}
     >
+      {/* Nút Xóa lọc nhanh khi có filter/search */}
+      {isFiltered && onReset && (
+        <button
+          type="button"
+          onClick={onReset}
+          className="tap-feedback shrink-0 px-3 py-1.5 rounded-full text-xs transition-all duration-200 border bg-coral-50 text-coral-800 border-coral-200/90 font-medium hover:bg-coral-100 flex items-center gap-1 shadow-2xs"
+          aria-label="Xóa tất cả bộ lọc"
+        >
+          <span>✕</span> Xóa lọc
+        </button>
+      )}
+
       {/* Chip "Tất cả" */}
       <Link
         to={`/san-pham?${toSearchParams({ ...query, category: "all" }).toString()}`}

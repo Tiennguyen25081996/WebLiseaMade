@@ -8,27 +8,18 @@ export function AutoLayoutFilterBar({ className = "" }: React.ComponentPropsWith
 
   return (
     <div
-      className={`w-full rounded-2xl border border-sand-200/90 bg-sand-100/70 p-4 md:p-5 backdrop-blur-sm shadow-2xs flex flex-col gap-3.5 ${className}`}
+      className={`w-full rounded-2xl border border-sand-200/90 bg-sand-100/70 p-3 sm:p-4 md:p-5 backdrop-blur-sm shadow-2xs flex flex-col gap-3 ${className}`}
     >
-      {/* Hàng 1: Tìm kiếm + Sắp xếp */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        <div className="flex-1 max-w-full sm:max-w-md">
+      {/* Hàng 1: Ô tìm kiếm + Combobox sắp xếp nằm cùng 1 hàng đồng bộ chiều cao trên mọi màn hình */}
+      <div className="flex items-center gap-2 sm:gap-3 w-full">
+        <div className="flex-1 min-w-0">
           <SearchField
             value={query.q}
             onQueryChange={(val) => setQuery({ q: val })}
           />
         </div>
 
-        <div className="flex items-center gap-2.5 self-end sm:self-auto shrink-0">
-          {isFiltered && (
-            <button
-              type="button"
-              onClick={reset}
-              className="text-xs text-coral-700 hover:text-coral-900 underline font-medium px-2 py-1 transition-colors"
-            >
-              Xóa bộ lọc
-            </button>
-          )}
+        <div className="shrink-0 w-[120px] sm:w-[155px]">
           <SortPicker
             query={query}
             onSortChange={(sort) => setQuery({ sort })}
@@ -36,9 +27,9 @@ export function AutoLayoutFilterBar({ className = "" }: React.ComponentPropsWith
         </div>
       </div>
 
-      {/* Hàng 2: Danh mục (Pills cuộn ngang êm ái trên mobile) */}
+      {/* Hàng 2: Danh mục sản phẩm (Pills cuộn ngang êm ái trên mobile, có nút Xóa lọc) */}
       <div className="pt-2 border-t border-sand-200/60">
-        <FilterChips query={query} />
+        <FilterChips query={query} isFiltered={isFiltered} onReset={reset} />
       </div>
     </div>
   );
