@@ -46,9 +46,7 @@ export default function CatalogPage() {
           </div>
         )}
 
-        <div className="rounded-hair bg-sand-100 p-6 border-1 border-sand-200">
-          <AutoLayoutFilterBar />
-        </div>
+        <AutoLayoutFilterBar />
 
         {results.length === 0 ? (
           <EmptyState query={query} />

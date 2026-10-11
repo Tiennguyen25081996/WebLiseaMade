@@ -9,7 +9,9 @@
 -- D1/SQLite không hỗ trợ ALTER ADD CHECK, phải recreate table.
 -- ============================================================
 
-CREATE TABLE IF NOT EXISTS orders_new (
+DROP TABLE IF EXISTS orders_new;
+
+CREATE TABLE orders_new (
   id TEXT PRIMARY KEY,
   code TEXT UNIQUE COLLATE NOCASE NOT NULL,
   customer_name TEXT NOT NULL,
@@ -30,7 +32,7 @@ CREATE TABLE IF NOT EXISTS orders_new (
 );
 
 INSERT INTO orders_new (id, code, customer_name, phone, email, address, province, district, note, payment_method, subtotal, shipping_fee, discount, total, status, created_at, updated_at)
-SELECT id, code, customer_name, phone, email, address, province, district, note, payment_method, subtotal, shipping_fee, 0, total, status, created_at, updated_at
+SELECT id, code, customer_name, phone, email, address, province, district, note, payment_method, subtotal, shipping_fee, 0, total, status, created_at, created_at
 FROM orders;
 
 DROP TABLE orders;
@@ -44,7 +46,9 @@ CREATE INDEX IF NOT EXISTS idx_orders_status_created ON orders(status, created_a
 -- Thêm order_id column, migrate data qua JOIN
 -- ============================================================
 
-CREATE TABLE IF NOT EXISTS order_items_new (
+DROP TABLE IF EXISTS order_items_new;
+
+CREATE TABLE order_items_new (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   order_id TEXT NOT NULL,
   product_id TEXT NOT NULL,
@@ -71,7 +75,9 @@ CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
 -- STEP 3: customer_events — ip → ip_hash (PII compliance)
 -- ============================================================
 
-CREATE TABLE IF NOT EXISTS customer_events_new (
+DROP TABLE IF EXISTS customer_events_new;
+
+CREATE TABLE customer_events_new (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   event_type TEXT NOT NULL,
   payload TEXT,
