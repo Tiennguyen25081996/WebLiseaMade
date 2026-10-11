@@ -113,20 +113,20 @@ export default function CartPage() {
             <CartSummary totals={totals} itemCount={itemCount} />
           </div>
 
-          <div className="mt-24 flex items-center justify-center gap-8">
-            <ButtonLink
+          <div className="mt-14 sm:mt-20 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 sm:gap-6 max-w-md mx-auto w-full">
+            <Button
               to="/thanh-toan"
               variant="primary"
               size="lg"
-              className="px-12 h-14 text-lg rounded-hair bg-ink-900 text-white hover:bg-ink-800 active:scale-[0.98] transition-all duration-500 ease-out flex items-center justify-center"
-              aria-label="Tiến hành thanh toán"
+              className="w-full sm:w-auto px-8 h-12 sm:h-14 text-sm sm:text-base rounded-hair font-medium shadow-2xs"
+              aria-label="Thanh toán"
             >
-              Tiến hành thanh toán
-            </ButtonLink>
+              Thanh toán
+            </Button>
             <Button
               variant="ghost"
               size="lg"
-              className="px-12 h-14 text-lg rounded-hair border-[0.5px] border-sand-300 hover:border-ink-900/40 transition-all duration-500 ease-out flex items-center justify-center"
+              className="w-full sm:w-auto px-8 h-12 sm:h-14 text-sm sm:text-base rounded-hair border border-sand-300/80 hover:border-ink-900/40"
               aria-label="Xóa giỏ hàng"
               onClick={() => setIsConfirmDelete(true)}
             >
