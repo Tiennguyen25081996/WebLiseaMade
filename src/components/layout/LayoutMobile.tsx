@@ -29,7 +29,7 @@ function MobileHeader() {
       }`}
       aria-label="Menu di động"
     >
-      <nav className="flex items-center justify-between h-full w-full max-w-[390px] mx-auto px-5">
+      <nav className="flex items-center justify-between h-full w-full max-w-md mx-auto px-5">
         <Link 
           to="/"
           className="tap-feedback font-display text-lg tracking-[0.04em] font-normal text-ink-900 hover:opacity-80 transition-opacity focus-visible:outline-1 focus-visible:outline-lagoon-600 rounded-hair px-2 py-1"
@@ -113,48 +113,61 @@ function MobileFooter() {
   const { itemCount } = useCart();
 
   return (
-    <footer className="sticky bottom-0 inset-x-0 h-16 luxury-glass border-t border-sand-200/60 max-w-[390px] mx-auto px-2 z-50 flex items-center justify-between" aria-label="Điều hướng chính di động">
-      {NAV_ITEMS.map((item) => {
-        const Icon = item.icon;
-        const isCart = item.to === "/gio-hang";
+    <footer
+      className="sticky bottom-0 inset-x-0 z-50 w-full border-t border-sand-200/80 luxury-glass pb-[env(safe-area-inset-bottom,0px)]"
+      aria-label="Điều hướng chính di động"
+    >
+      <nav className="grid grid-cols-5 h-16 w-full max-w-md mx-auto px-1 items-stretch">
+        {NAV_ITEMS.map((item) => {
+          const Icon = item.icon;
+          const isCart = item.to === "/gio-hang";
 
-        return (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.to === "/"}
-            className={({ isActive }) =>
-              `tap-feedback relative flex flex-col items-center justify-center flex-1 h-full min-h-[44px] py-1 transition-all duration-300 ease-editorial ${
-                isActive
-                  ? "text-ink-900 font-medium"
-                  : "text-ink-500 hover:text-ink-900"
-              }`
-            }
-          >
-            {({ isActive }) => (
-              <>
-                <div className="relative flex items-center justify-center">
-                  <Icon className={`h-5 w-5 transition-transform duration-300 ease-editorial ${isActive ? "scale-110 stroke-[1.8]" : "stroke-[1.3]"}`} />
-                  {isCart && itemCount > 0 && (
-                    <span
-                      key={itemCount}
-                      className="absolute -top-1 -right-2 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-coral-700 px-1 text-[9px] font-bold text-sand-50 tabular-nums animate-badge-pop shadow-sm"
-                    >
-                      {itemCount > 99 ? "99+" : itemCount}
-                    </span>
+          return (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.to === "/"}
+              className={({ isActive }) =>
+                `tap-feedback relative flex flex-col items-center justify-center h-full w-full py-1 text-center transition-colors duration-200 select-none ${
+                  isActive
+                    ? "text-ink-900 font-medium"
+                    : "text-ink-500 hover:text-ink-900"
+                }`
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  <div className="relative flex h-6 w-6 items-center justify-center">
+                    <Icon
+                      className={`h-5 w-5 transition-all duration-200 ${
+                        isActive ? "stroke-[2] text-ink-900" : "stroke-[1.4] text-ink-500"
+                      }`}
+                    />
+                    {isCart && itemCount > 0 && (
+                      <span
+                        key={itemCount}
+                        className="absolute -top-1 -right-2 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-coral-700 px-1 text-[9px] font-bold text-sand-50 tabular-nums animate-badge-pop shadow-sm"
+                      >
+                        {itemCount > 99 ? "99+" : itemCount}
+                      </span>
+                    )}
+                  </div>
+                  <span
+                    className={`mt-1 text-[11px] font-sans leading-tight tracking-normal whitespace-nowrap transition-colors duration-200 ${
+                      isActive ? "font-semibold text-ink-900" : "font-normal text-ink-500"
+                    }`}
+                  >
+                    {item.label}
+                  </span>
+                  {isActive && (
+                    <span className="absolute bottom-1 left-1/2 -translate-x-1/2 h-[2px] w-4 rounded-full bg-ink-900 animate-fade-in-slow" />
                   )}
-                </div>
-                <span className={`mt-1 text-[10px] tracking-[0.06em] leading-none ${isActive ? "text-ink-900 font-semibold" : "text-ink-500"}`}>
-                  {item.label}
-                </span>
-                {isActive && (
-                  <span className="absolute bottom-1 h-[2px] w-4 rounded-full bg-ink-900 animate-fade-in-slow" />
-                )}
-              </>
-            )}
-          </NavLink>
-        );
-      })}
+                </>
+              )}
+            </NavLink>
+          );
+        })}
+      </nav>
     </footer>
   );
 }
@@ -164,8 +177,8 @@ function LayoutMobileWrapper() {
     <section className="mobile-layout min-h-screen flex flex-col bg-sand-50 w-full" aria-label="Nội dung di động">
       <MobileHeader />
       
-      {/* Mobile content container — Figma frame max-width 390px */}
-      <main id="nout-content-mobile" className="flex-1 w-full max-w-[390px] mx-auto px-3 pb-20 md:hidden">
+      {/* Mobile content container — Max width constrained for editorial mobile */}
+      <main id="nout-content-mobile" className="flex-1 w-full max-w-md mx-auto px-3 pb-20 md:hidden">
         <Outlet />
       </main>
 
