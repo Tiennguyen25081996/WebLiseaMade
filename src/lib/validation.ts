@@ -209,6 +209,7 @@ export interface ValidatedOrderPayload {
   paymentMethod: PaymentMethod;
   subtotal: number;
   shippingFee: number;
+  discount: number;
   total: number;
   items: ValidatedOrderItem[];
 }
@@ -334,7 +335,13 @@ export function validateOrderPayload(raw: unknown): {
     errors.shippingFee = "Phí vận chuyển không hợp lệ.";
   }
 
-  const expectedTotal = calculatedSubtotal + shippingFee;
+  // S10: discount field — hiện mặc định 0, sẵn sàng cho coupon
+  const discount = Number(p.discount) || 0;
+  if (discount < 0) {
+    errors.discount = "Giảm giá không hợp lệ.";
+  }
+
+  const expectedTotal = calculatedSubtotal + shippingFee - discount;
   const clientTotal = Number(p.total);
 
   if (Number.isFinite(clientTotal) && Math.abs(clientTotal - expectedTotal) > 1) {
@@ -360,6 +367,7 @@ export function validateOrderPayload(raw: unknown): {
       paymentMethod,
       subtotal: calculatedSubtotal,
       shippingFee,
+      discount,
       total: expectedTotal,
       items: validatedItems,
     },
