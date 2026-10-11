@@ -127,6 +127,13 @@ function MobileFooter() {
               key={item.to}
               to={item.to}
               end={item.to === "/"}
+              onClick={() => {
+                const current = window.location.pathname;
+                const target = item.to;
+                if (target === "/" ? current === "/" : current.startsWith(target)) {
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }
+              }}
               className={({ isActive }) =>
                 `tap-feedback relative flex flex-col items-center justify-center h-full w-full py-1 text-center transition-colors duration-200 select-none ${
                   isActive
