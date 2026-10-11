@@ -16,6 +16,7 @@ export interface CreateOrderPayload {
   paymentMethod: "cod" | "bank-transfer" | "e-wallet";
   subtotal: number;
   shippingFee: number;
+  discount: number;
   total: number;
   items: Array<{
     productId: string;
@@ -44,6 +45,7 @@ export function toCreateOrderPayload(order: PlacedOrder): CreateOrderPayload {
     paymentMethod: order.info.paymentMethod,
     subtotal: order.totals.subtotal,
     shippingFee: order.totals.shippingFee,
+    discount: order.totals.discount,
     total: order.totals.total,
     items: order.lines.map((l) => ({
       productId: l.productId,
@@ -133,7 +135,7 @@ export async function getOrderByCodeApi(code: string): Promise<{
           totals: {
             subtotal: Number(raw.subtotal) || 0,
             shippingFee: Number(raw.shipping_fee ?? raw.shippingFee) || 0,
-            discount: 0,
+            discount: Number(raw.discount) || 0,
             total: Number(raw.total) || 0,
           },
           info: {

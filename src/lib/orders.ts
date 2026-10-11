@@ -96,45 +96,25 @@ export function safeStorage(): Storage | undefined {
   }
 }
 
+import {
+  isValidEmail as isValidEmailVal,
+  isValidVietnamesePhone,
+  validateCheckoutForm,
+  type CheckoutFormErrors,
+} from "@/lib/validation";
+
 export function isValidPhone(phone: string): boolean {
-  const digits = phone.replace(/[^\d]/g, "");
-  return digits.length >= 9 && digits.length <= 11;
+  return isValidVietnamesePhone(phone);
 }
 
 export function isValidEmail(email: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim());
+  return isValidEmailVal(email);
 }
 
-export interface CheckoutErrors {
-  fullName?: string;
-  phone?: string;
-  email?: string;
-  address?: string;
-  province?: string;
-  district?: string;
-}
+export type CheckoutErrors = CheckoutFormErrors;
 
 export function validateCheckout(info: CheckoutInfo): CheckoutErrors {
-  const errors: CheckoutErrors = {};
-  if (info.fullName.trim().length < 2) {
-    errors.fullName = "Vui lòng nhập họ tên (ít nhất 2 ký tự).";
-  }
-  if (!isValidPhone(info.phone)) {
-    errors.phone = "Vui lòng nhập số điện thoại 10 số.";
-  }
-  if (info.email.trim() && !isValidEmail(info.email)) {
-    errors.email = "Email chưa đúng định dạng.";
-  }
-  if (info.address.trim().length < 10) {
-    errors.address = "Vui lòng nhập địa chỉ chi tiết (ít nhất 10 ký tự).";
-  }
-  if (!info.province.trim()) {
-    errors.province = "Vui lòng chọn Tỉnh/Thành phố.";
-  }
-  if (!info.district.trim()) {
-    errors.district = "Vui lòng chọn Quận/Huyện.";
-  }
-  return errors;
+  return validateCheckoutForm(info);
 }
 
 export function hasErrors(errors: CheckoutErrors): boolean {

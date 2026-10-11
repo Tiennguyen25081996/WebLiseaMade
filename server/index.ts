@@ -3,6 +3,8 @@
  * Xử lý API đặt hàng, tra cứu đơn và lưu vết sự kiện khách hàng trên Cloudflare D1.
  */
 
+import { isValidOrderCode, validateOrderPayload } from "../src/lib/validation";
+
 // Định nghĩa tối thiểu cho interface D1Database nếu môi trường worker chưa có types đầy đủ
 export interface D1PreparedStatement {
   bind(...values: unknown[]): D1PreparedStatement;
@@ -50,9 +52,11 @@ export interface OrderInput {
   paymentMethod: string;
   subtotal: number;
   shippingFee: number;
+  discount: number;
   total: number;
   status?: string;
   createdAt?: string;
+  updatedAt?: string;
   items: OrderItemInput[];
 }
 
@@ -68,54 +72,85 @@ export function getDb(env: Env): D1Database | null {
   return env.DB ?? env.prod_d1_tutorial ?? null;
 }
 
-/** Tự động migration khởi tạo bảng nếu chưa có */
+/**
+ * S7: initDb chỉ đảm bảo schema tồn tại bằng IF NOT EXISTS.
+ * Schema chính thức nằm ở db/schema.sql, migration ở migrations/.
+ * Hàm này là safety net cho lần deploy đầu tiên, không thay thế migration.
+ */
+let dbInitialized = false;
+
 export async function initDb(db: D1Database): Promise<void> {
-  const schemaSql = `
-    CREATE TABLE IF NOT EXISTS orders (
-      id TEXT PRIMARY KEY,
-      code TEXT UNIQUE NOT NULL,
-      customer_name TEXT NOT NULL,
-      phone TEXT NOT NULL,
-      email TEXT,
-      address TEXT NOT NULL,
-      province TEXT NOT NULL,
-      district TEXT NOT NULL,
-      note TEXT,
-      payment_method TEXT NOT NULL,
-      subtotal INTEGER NOT NULL,
-      shipping_fee INTEGER NOT NULL,
-      total INTEGER NOT NULL,
-      status TEXT DEFAULT 'pending',
-      created_at TEXT NOT NULL
-    );
+  if (dbInitialized) return;
+  try {
+    // ponytail: chỉ CREATE IF NOT EXISTS, không đặt logic migration ở đây.
+    // Migration chính thức chạy qua `wrangler d1 migrations apply`.
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS orders (
+        id TEXT PRIMARY KEY,
+        code TEXT UNIQUE COLLATE NOCASE NOT NULL,
+        customer_name TEXT NOT NULL,
+        phone TEXT NOT NULL,
+        email TEXT,
+        address TEXT NOT NULL,
+        province TEXT NOT NULL,
+        district TEXT NOT NULL,
+        note TEXT,
+        payment_method TEXT NOT NULL CHECK (payment_method IN ('cod', 'bank-transfer', 'e-wallet')),
+        subtotal INTEGER NOT NULL CHECK (subtotal >= 0),
+        shipping_fee INTEGER NOT NULL CHECK (shipping_fee >= 0),
+        discount INTEGER NOT NULL DEFAULT 0 CHECK (discount >= 0),
+        total INTEGER NOT NULL CHECK (total >= 0),
+        status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'shipping', 'completed', 'cancelled')),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_orders_phone ON orders(phone);
+      CREATE INDEX IF NOT EXISTS idx_orders_status_created ON orders(status, created_at DESC);
+      CREATE TABLE IF NOT EXISTS order_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id TEXT NOT NULL,
+        product_id TEXT NOT NULL,
+        variant_id TEXT NOT NULL,
+        product_name TEXT NOT NULL,
+        variant_label TEXT NOT NULL,
+        price INTEGER NOT NULL CHECK (price >= 0),
+        quantity INTEGER NOT NULL CHECK (quantity > 0),
+        line_total INTEGER NOT NULL CHECK (line_total >= 0),
+        FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
+      CREATE TABLE IF NOT EXISTS customer_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_type TEXT NOT NULL,
+        payload TEXT,
+        user_agent TEXT,
+        ip_hash TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_customer_events_type_created ON customer_events(event_type, created_at);
+    `);
+    dbInitialized = true;
+  } catch (err) {
+    console.warn("initDb warning:", err);
+    dbInitialized = true;
+  }
+}
 
-    CREATE TABLE IF NOT EXISTS order_items (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      order_code TEXT NOT NULL,
-      product_id TEXT NOT NULL,
-      variant_id TEXT NOT NULL,
-      product_name TEXT NOT NULL,
-      variant_label TEXT NOT NULL,
-      price INTEGER NOT NULL,
-      quantity INTEGER NOT NULL,
-      line_total INTEGER NOT NULL
-    );
+/** Reset init flag — chỉ dùng cho test */
+export function resetDbInit(): void {
+  dbInitialized = false;
+}
 
-    CREATE INDEX IF NOT EXISTS idx_order_items_order_code ON order_items(order_code);
-
-    CREATE TABLE IF NOT EXISTS customer_events (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      event_type TEXT NOT NULL,
-      payload TEXT,
-      user_agent TEXT,
-      ip TEXT,
-      created_at TEXT NOT NULL
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_customer_events_type_created ON customer_events(event_type, created_at);
-  `;
-
-  await db.exec(schemaSql);
+/**
+ * S6: Hash IP trước khi lưu DB — PII compliance.
+ * Dùng SHA-256 qua Web Crypto API (có sẵn trên Cloudflare Workers).
+ */
+async function hashIp(ip: string): Promise<string> {
+  if (!ip) return "";
+  const data = new TextEncoder().encode(ip);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 function jsonResponse(data: unknown, status = 200): Response {
@@ -162,40 +197,37 @@ export default {
 
         // POST /api/orders
         if (url.pathname === "/api/orders" && request.method === "POST") {
-          const body = (await request.json().catch(() => null)) as Partial<OrderInput> | null;
-          if (!body) {
+          const rawBody = await request.json().catch(() => null);
+          if (!rawBody) {
             return jsonResponse({ success: false, error: "Dữ liệu JSON không hợp lệ" }, 400);
           }
 
-          // Validate bắt buộc
-          if (
-            !body.code ||
-            !body.customerName?.trim() ||
-            !body.phone?.trim() ||
-            !body.address?.trim() ||
-            !body.paymentMethod ||
-            !Array.isArray(body.items) ||
-            body.items.length === 0
-          ) {
+          // Kiểm tra và sanitize toàn bộ input bằng module validation
+          const validation = validateOrderPayload(rawBody);
+          if (!validation.valid || !validation.sanitized) {
             return jsonResponse(
               {
                 success: false,
-                error: "Thiếu thông tin đơn hàng bắt buộc hoặc danh sách sản phẩm rỗng",
+                error: "Dữ liệu đầu vào không hợp lệ",
+                errors: validation.errors,
               },
               400,
             );
           }
 
-          const orderId = body.id || `ord_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-          const createdAt = body.createdAt || new Date().toISOString();
-          const status = body.status || "pending";
-          const email = body.email?.trim() || null;
-          const note = body.note?.trim() || null;
-          const province = body.province?.trim() || "";
-          const district = body.district?.trim() || "";
-          const subtotal = Math.round(body.subtotal ?? 0);
-          const shippingFee = Math.round(body.shippingFee ?? 0);
-          const total = Math.round(body.total ?? (subtotal + shippingFee));
+          const sanitized = validation.sanitized;
+          const orderId = (rawBody as Record<string, unknown>).id
+            ? String((rawBody as Record<string, unknown>).id)
+            : `ord_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+          const createdAt = (rawBody as Record<string, unknown>).createdAt
+            ? String((rawBody as Record<string, unknown>).createdAt)
+            : new Date().toISOString();
+          const updatedAt = (rawBody as Record<string, unknown>).updatedAt
+            ? String((rawBody as Record<string, unknown>).updatedAt)
+            : createdAt;
+          const status = "pending";
+          // S10: discount từ sanitized payload (hiện = 0, sẵn sàng cho coupon)
+          const discount = sanitized.discount ?? 0;
 
           // Chuẩn bị batch queries cho transaction
           const statements: D1PreparedStatement[] = [];
@@ -205,49 +237,48 @@ export default {
               .prepare(
                 `INSERT INTO orders (
                   id, code, customer_name, phone, email, address, province, district,
-                  note, payment_method, subtotal, shipping_fee, total, status, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                  note, payment_method, subtotal, shipping_fee, discount, total, status, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
               )
               .bind(
                 orderId,
-                body.code,
-                body.customerName.trim(),
-                body.phone.trim(),
-                email,
-                body.address.trim(),
-                province,
-                district,
-                note,
-                body.paymentMethod,
-                subtotal,
-                shippingFee,
-                total,
+                sanitized.code,
+                sanitized.customerName,
+                sanitized.phone,
+                sanitized.email,
+                sanitized.address,
+                sanitized.province,
+                sanitized.district,
+                sanitized.note,
+                sanitized.paymentMethod,
+                sanitized.subtotal,
+                sanitized.shippingFee,
+                discount,
+                sanitized.total,
                 status,
                 createdAt,
+                updatedAt,
               ),
           );
 
-          for (const item of body.items) {
-            const price = Math.round(item.price ?? 0);
-            const quantity = Math.round(item.quantity ?? 1);
-            const lineTotal = Math.round(item.lineTotal ?? price * quantity);
-
+          // S1: order_items FK → orders.id (orderId), không dùng orders.code
+          for (const item of sanitized.items) {
             statements.push(
               db
                 .prepare(
                   `INSERT INTO order_items (
-                    order_code, product_id, variant_id, product_name, variant_label, price, quantity, line_total
+                    order_id, product_id, variant_id, product_name, variant_label, price, quantity, line_total
                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
                 )
                 .bind(
-                  body.code,
+                  orderId,
                   item.productId,
                   item.variantId,
-                  item.productName || "",
-                  item.variantLabel || "",
-                  price,
-                  quantity,
-                  lineTotal,
+                  item.productName,
+                  item.variantLabel,
+                  item.price,
+                  item.quantity,
+                  item.lineTotal,
                 ),
             );
           }
@@ -259,9 +290,9 @@ export default {
             success: true,
             order: {
               id: orderId,
-              code: body.code,
+              code: sanitized.code,
               status,
-              total,
+              total: sanitized.total,
               createdAt,
             },
           }, 201);
@@ -270,8 +301,8 @@ export default {
         // GET /api/orders/:code
         if (url.pathname.startsWith("/api/orders/") && request.method === "GET") {
           const code = decodeURIComponent(url.pathname.replace("/api/orders/", "")).trim();
-          if (!code) {
-            return jsonResponse({ success: false, error: "Mã đơn hàng không hợp lệ" }, 400);
+          if (!isValidOrderCode(code)) {
+            return jsonResponse({ success: false, error: "Định dạng mã đơn hàng không hợp lệ (LM-XXXXXX)" }, 400);
           }
 
           const order = await db
@@ -283,9 +314,10 @@ export default {
             return jsonResponse({ success: false, error: "Không tìm thấy đơn hàng" }, 404);
           }
 
+          // S1: query order_items bằng order.id thay vì order.code
           const itemsResult = await db
-            .prepare("SELECT * FROM order_items WHERE order_code = ?")
-            .bind(order.code as string)
+            .prepare("SELECT * FROM order_items WHERE order_id = ?")
+            .bind(order.id as string)
             .all();
 
           return jsonResponse({
@@ -305,21 +337,23 @@ export default {
           }
 
           const userAgent = body.userAgent || request.headers.get("User-Agent") || "";
-          const ip =
+          const rawIp =
             body.ip ||
             request.headers.get("CF-Connecting-IP") ||
             request.headers.get("X-Forwarded-For") ||
             "";
+          // S6: Hash IP trước khi lưu — không lưu raw IP (PII compliance)
+          const ipHash = await hashIp(rawIp);
           const createdAt = new Date().toISOString();
           const payloadStr =
             typeof body.payload === "string" ? body.payload : JSON.stringify(body.payload ?? {});
 
           await db
             .prepare(
-              `INSERT INTO customer_events (event_type, payload, user_agent, ip, created_at)
+              `INSERT INTO customer_events (event_type, payload, user_agent, ip_hash, created_at)
                VALUES (?, ?, ?, ?, ?)`
             )
-            .bind(body.eventType, payloadStr, userAgent, ip, createdAt)
+            .bind(body.eventType, payloadStr, userAgent, ipHash, createdAt)
             .run();
 
           return jsonResponse({ success: true, loggedAt: createdAt }, 201);

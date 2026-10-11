@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useCart } from "@/context/cart-context";
 import { generateOrderCode, hasErrors, validateCheckout, type CheckoutErrors } from "@/lib/orders";
 import { createOrderApi, trackCustomerEvent } from "@/lib/api";
+import { getProvinces, getDistrictsByProvince } from "@/data/locations";
 import type { CheckoutInfo, PaymentMethod, PlacedOrder } from "@/types";
 import { Button } from "@/components/ui/Button";
 import { CartSummary } from "@/components/cart/CartSummary";
@@ -86,6 +87,7 @@ export default function CheckoutPage() {
     paymentMethod: "cod",
   });
 
+  const [touched, setTouched] = useState<Partial<Record<FieldId, boolean>>>({});
   const [saveFailed, setSaveFailed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -93,8 +95,34 @@ export default function CheckoutPage() {
   const invalid = hasErrors(errors);
   const emptyCart = cart.lines.length === 0;
 
+  const provinces = useMemo(() => getProvinces(), []);
+  const districts = useMemo(() => getDistrictsByProvince(info.province), [info.province]);
+
+  const handleBlur = (fieldId: FieldId) => {
+    setTouched((prev) => ({ ...prev, [fieldId]: true }));
+  };
+
   const handleCheckout = async () => {
-    if (invalid || isSubmitting) return;
+    // Touch all fields to show errors if any
+    const allTouched: Partial<Record<FieldId, boolean>> = {};
+    for (const f of FIELDS) {
+      allTouched[f.id] = true;
+    }
+    setTouched(allTouched);
+
+    if (invalid || isSubmitting) {
+      // Focus trường lỗi đầu tiên theo chuẩn a11y
+      for (const field of FIELDS) {
+        if (field.errorKey && errors[field.errorKey]) {
+          const el = document.getElementById(field.id);
+          if (el) {
+            el.focus();
+            break;
+          }
+        }
+      }
+      return;
+    }
     
     setIsSubmitting(true);
     try {
@@ -150,7 +178,9 @@ export default function CheckoutPage() {
                 <div className="grid gap-6 sm:grid-cols-2">
                   {FIELDS.map((field) => {
                     const errorKey = field.errorKey as keyof CheckoutErrors;
-                    const errorText = errorKey ? errors[errorKey] : undefined;
+                    const rawError = errorKey ? errors[errorKey] : undefined;
+                    const isTouched = Boolean(touched[field.id]);
+                    const showError = isTouched && rawError !== undefined;
                     return (
                       <div
                         key={field.id}
@@ -163,28 +193,111 @@ export default function CheckoutPage() {
                           {field.label}
                           {field.required && <span className="text-coral-700 ml-1">*</span>}
                         </label>
-                        <input
-                          id={field.id}
-                          name={field.id}
-                          type={field.id === "email" ? "email" : "text"}
-                          autoComplete={
-                            field.id === "ho-ten" ? "name" :
-                            field.id === "so-dien-thoai" ? "tel" :
-                            field.id === "email" ? "email" : "off"
-                          }
-                          placeholder={field.placeholder}
-                          aria-invalid={errorText !== undefined}
-                          aria-describedby={errorText !== undefined ? `err-${field.id}` : undefined}
-                          onChange={(e) => {
-                            setInfo((prev) => applyField(prev, field.id, e.target.value));
-                          }}
-                          className={`block w-full rounded-hair border-1 px-4 py-3 text-base text-ink-900 transition-all ${
-                            errorText
-                              ? "border-coral-700 bg-coral-50/50"
-                              : "border-sand-300 bg-sand-100 hover:border-ink-900/40"
-                          }`}
-                        />
-                        {errorText && <p className="text-xs font-medium text-coral-700">⚠ {errorText}</p>}
+                        {field.id === "tinh-thang" ? (
+                          <div className="relative">
+                            <select
+                              id={field.id}
+                              name={field.id}
+                              value={info.province}
+                              aria-invalid={showError ? "true" : undefined}
+                              aria-describedby={showError ? `err-${field.id}` : undefined}
+                              onBlur={() => handleBlur(field.id)}
+                              onChange={(e) => {
+                                const newProvince = e.target.value;
+                                setInfo((prev) => ({
+                                  ...prev,
+                                  province: newProvince,
+                                  district: "", // Reset quận huyện khi đổi tỉnh thành
+                                }));
+                              }}
+                              className={`block w-full appearance-none rounded-hair border-1 px-4 py-3 pr-10 text-base transition-all cursor-pointer ${
+                                !info.province ? "text-ink-500" : "text-ink-900"
+                              } ${
+                                showError
+                                  ? "border-coral-700 bg-coral-50/50"
+                                  : "border-sand-300 bg-sand-100 hover:border-ink-900/40"
+                              }`}
+                            >
+                              <option value="" disabled>-- Chọn Tỉnh / Thành phố --</option>
+                              {provinces.map((p) => (
+                                <option key={p} value={p} className="text-ink-900 bg-sand-50">
+                                  {p}
+                                </option>
+                              ))}
+                            </select>
+                            <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs text-ink-500">
+                              ▼
+                            </span>
+                          </div>
+                        ) : field.id === "quan-huyen" ? (
+                          <div className="relative">
+                            <select
+                              id={field.id}
+                              name={field.id}
+                              value={info.district}
+                              disabled={!info.province}
+                              aria-invalid={showError ? "true" : undefined}
+                              aria-describedby={showError ? `err-${field.id}` : undefined}
+                              onBlur={() => handleBlur(field.id)}
+                              onChange={(e) => {
+                                setInfo((prev) => ({ ...prev, district: e.target.value }));
+                              }}
+                              className={`block w-full appearance-none rounded-hair border-1 px-4 py-3 pr-10 text-base transition-all ${
+                                !info.province
+                                  ? "cursor-not-allowed bg-sand-200/50 text-ink-300 border-sand-200"
+                                  : "cursor-pointer text-ink-900 " +
+                                    (showError
+                                      ? "border-coral-700 bg-coral-50/50"
+                                      : "border-sand-300 bg-sand-100 hover:border-ink-900/40")
+                              }`}
+                            >
+                              <option value="" disabled>
+                                {!info.province ? "-- Chọn Tỉnh/Thành trước --" : "-- Chọn Quận / Huyện --"}
+                              </option>
+                              {districts.map((d) => (
+                                <option key={d} value={d} className="text-ink-900 bg-sand-50">
+                                  {d}
+                                </option>
+                              ))}
+                            </select>
+                            <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs text-ink-500">
+                              ▼
+                            </span>
+                          </div>
+                        ) : (
+                          <input
+                            id={field.id}
+                            name={field.id}
+                            type={field.id === "email" ? "email" : "text"}
+                            autoComplete={
+                              field.id === "ho-ten" ? "name" :
+                              field.id === "so-dien-thoai" ? "tel" :
+                              field.id === "email" ? "email" : "off"
+                            }
+                            placeholder={field.placeholder}
+                            aria-invalid={showError ? "true" : undefined}
+                            aria-describedby={showError ? `err-${field.id}` : undefined}
+                            onBlur={() => handleBlur(field.id)}
+                            onChange={(e) => {
+                              let val = e.target.value;
+                              if (field.id === "so-dien-thoai") {
+                                // Auto-clean: loại bỏ khoảng trắng thừa
+                                val = val.replace(/\s+/g, "");
+                              }
+                              setInfo((prev) => applyField(prev, field.id, val));
+                            }}
+                            className={`block w-full rounded-hair border-1 px-4 py-3 text-base text-ink-900 transition-all ${
+                              showError
+                                ? "border-coral-700 bg-coral-50/50"
+                                : "border-sand-300 bg-sand-100 hover:border-ink-900/40"
+                            }`}
+                          />
+                        )}
+                        {showError && (
+                          <p id={`err-${field.id}`} className="text-xs font-medium text-coral-700" role="alert">
+                            ⚠ {rawError}
+                          </p>
+                        )}
                       </div>
                     );
                   })}
