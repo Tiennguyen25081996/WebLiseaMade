@@ -343,21 +343,21 @@ export default function CheckoutPage() {
                 </div>
               </section>
 
-              <div className="mt-10 flex flex-wrap items-center gap-4">
+              <div className="mt-10 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 w-full">
                 <Button
                   variant="primary"
                   size="lg"
-                  className="px-10 h-14 text-lg rounded-hair bg-ink-900 text-sand-50 hover:bg-ink-700 active:scale-[0.98] transition-all"
+                  className="w-full sm:w-auto px-6 sm:px-10 h-12 sm:h-14 text-sm sm:text-base font-medium rounded-hair bg-ink-900 text-sand-50 hover:bg-ink-700 active:scale-[0.98] transition-all shadow-2xs text-center"
                   disabled={invalid || isSubmitting}
                   aria-label={`Đặt hàng, tổng ${formatVnd(cart.totals.total)}`}
                   onClick={handleCheckout}
                 >
-                  {isSubmitting ? "Đang xử lý..." : `Đặt đơn hàng ${formatVnd(cart.totals.total)}`}
+                  {isSubmitting ? "Đang xử lý..." : `Đặt đơn hàng · ${formatVnd(cart.totals.total)}`}
                 </Button>
                 <Button
                   variant="secondary"
                   size="lg"
-                  className="px-6 h-14 text-lg rounded-hair border-1 border-sand-300 hover:border-ink-900 transition-all"
+                  className="w-full sm:w-auto px-6 sm:px-8 h-12 sm:h-14 text-sm sm:text-base font-medium rounded-hair border border-sand-300/80 hover:border-ink-900 transition-all text-center"
                   onClick={() => navigate("/gio-hang")}
                 >
                   Quay lại
