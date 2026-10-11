@@ -60,6 +60,11 @@ export function Footer() {
                 Liên hệ
               </Link>
             </li>
+            <li>
+              <Link className="underline-reveal text-ink-400 hover:text-ink-900" to="/admin">
+                Quản trị (Admin)
+              </Link>
+            </li>
           </ul>
         </nav>
 

@@ -18,6 +18,7 @@ import OrderSuccessPage from "./pages/OrderSuccessPage";
 import OrderLookupPage from "./pages/OrderLookupPage";
 import AboutPage from "./pages/AboutPage";
 import ContactPage from "./pages/ContactPage";
+import AdminBoardPage from "./pages/AdminBoardPage";
 import NotFoundPage from "./pages/NotFoundPage";
 
 export default function App() {
@@ -36,6 +37,7 @@ export default function App() {
           <Route path="/tra-cuu-don" element={<OrderLookupPage />} />
           <Route path="/gioi-thieu" element={<AboutPage />} />
           <Route path="/lien-he" element={<ContactPage />} />
+          <Route path="/admin" element={<AdminBoardPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>
