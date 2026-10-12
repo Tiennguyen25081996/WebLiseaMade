@@ -9,6 +9,9 @@ import {
   setGoogleDriveWebhookUrl,
   GOOGLE_APPS_SCRIPT_TEMPLATE,
   extractGoogleDriveFileId,
+  getOfflineImages,
+  syncOfflineImagesToCloudflare,
+  seedLibraryWithSampleImages,
 } from "@/lib/media-api";
 import {
   getProductsUsingImage,
@@ -66,6 +69,9 @@ export function CloudflareImageUploader({
   const [isBatchDeleting, setIsBatchDeleting] = useState(false);
   const [showBatchDeleteModal, setShowBatchDeleteModal] = useState(false);
   const [selectedUrls, setSelectedUrls] = useState<string[]>([]);
+  const [offlineCount, setOfflineCount] = useState(0);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [isSeeding, setIsSeeding] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const showToast = (msg: string) => {
@@ -78,10 +84,39 @@ export function CloudflareImageUploader({
     try {
       const data = await getMediaImages();
       setImages(data);
+      setOfflineCount(getOfflineImages().length);
     } catch {
       // ignore
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSyncOffline = async () => {
+    setIsSyncing(true);
+    showToast("Đang đồng bộ ảnh lên Cloudflare D1...");
+    try {
+      const res = await syncOfflineImagesToCloudflare();
+      showToast(`Đã đồng bộ ${res.synced} ảnh lên Cloudflare D1!`);
+      await loadImages();
+    } catch {
+      showToast("Lỗi đồng bộ. Hãy kiểm tra kết nối.");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleSeedSamples = async () => {
+    setIsSeeding(true);
+    showToast("Đang nạp bộ ảnh mẫu của shop vào Cloudflare...");
+    try {
+      const res = await seedLibraryWithSampleImages();
+      showToast(`Đã nạp ${res.count} ảnh mẫu vào Cloudflare D1!`);
+      await loadImages();
+    } catch {
+      showToast("Không thể nạp ảnh mẫu.");
+    } finally {
+      setIsSeeding(false);
     }
   };
 
@@ -349,6 +384,31 @@ export function CloudflareImageUploader({
         </div>
       </div>
 
+      {/* Cảnh báo ảnh offline chưa đồng bộ lên Cloudflare D1 */}
+      {offlineCount > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-hair border border-amber-300 bg-amber-50 p-3.5 text-xs text-amber-900 animate-reveal-up">
+          <div className="flex items-center gap-2">
+            <span className="text-base">⚠️</span>
+            <div>
+              <p className="font-semibold">
+                Phát hiện {offlineCount} ảnh đang lưu tạm trên trình duyệt của bạn
+              </p>
+              <p className="text-2xs text-amber-800">
+                Những ảnh này người khác chưa xem được vì chưa đẩy lên Cloudflare D1. Hãy bấm đồng bộ để lưu vĩnh viễn lên server.
+              </p>
+            </div>
+          </div>
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={isSyncing}
+            onClick={handleSyncOffline}
+          >
+            {isSyncing ? "Đang đồng bộ..." : "Đồng bộ lên Cloudflare D1 ngay"}
+          </Button>
+        </div>
+      )}
+
       {/* Tabs Chuyển Đổi Phương Thức Tải Ảnh */}
       <div className="flex border-b border-sand-300">
         <button
@@ -462,6 +522,14 @@ export function CloudflareImageUploader({
               disabled={isLoading || isUploading}
             >
               Làm mới
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleSeedSamples}
+              disabled={isSeeding || isUploading}
+            >
+              {isSeeding ? "Đang nạp ảnh..." : "+ Nạp bộ ảnh mẫu của shop"}
             </Button>
           </div>
         </div>
@@ -588,10 +656,22 @@ export function CloudflareImageUploader({
             Đang đồng bộ ảnh từ Cloudflare...
           </div>
         ) : filteredImages.length === 0 ? (
-          <div className="rounded-hair border border-sand-300 bg-sand-100 p-10 text-center text-xs text-ink-500">
-            {searchQuery
-              ? "Không tìm thấy ảnh phù hợp với từ khóa."
-              : "Chưa có ảnh nào được tải lên. Hãy kéo thả ảnh hoặc dán link Google Drive ở trên!"}
+          <div className="rounded-hair border border-sand-300 bg-sand-100 p-8 text-center text-xs text-ink-600 space-y-3">
+            <p>
+              {searchQuery
+                ? "Không tìm thấy ảnh phù hợp với từ khóa."
+                : "Chưa có ảnh nào trên Cloudflare D1. Hãy tải ảnh lên hoặc bấm nạp sẵn bộ ảnh mẫu của shop!"}
+            </p>
+            {!searchQuery && (
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={isSeeding}
+                onClick={handleSeedSamples}
+              >
+                {isSeeding ? "Đang nạp..." : "+ Nạp ngay bộ ảnh mẫu vào Cloudflare D1"}
+              </Button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">

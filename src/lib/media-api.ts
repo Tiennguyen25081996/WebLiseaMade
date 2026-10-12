@@ -483,3 +483,96 @@ export async function deleteMediaImage(id: string): Promise<boolean> {
 
   return true;
 }
+
+export const DEFAULT_LIBRARY_IMAGES = [
+  { url: "/figma-images/hero.png", filename: "hero-hawaii.png" },
+  { url: "/figma-images/product-feat-1.png", filename: "ao-so-mi-hoa-dua.png" },
+  { url: "/figma-images/product-feat-2.png", filename: "vay-maxi-hoa-anh-dao.png" },
+  { url: "/figma-images/product-feat-3.png", filename: "set-do-linen-couple.png" },
+  { url: "/figma-images/catalog-1.png", filename: "catalog-so-mi-bien.png" },
+  { url: "/figma-images/catalog-2.png", filename: "catalog-vay-mua-he.png" },
+  { url: "/figma-images/catalog-3.png", filename: "catalog-linen-couple.png" },
+  { url: "/figma-images/catalog-4.png", filename: "catalog-tui-coi-dan.png" },
+  { url: "/figma-images/lifestyle-1.png", filename: "lifestyle-bien-voan.png" },
+  { url: "/figma-images/lifestyle-2.png", filename: "lifestyle-dao-pho-linen.png" },
+  { url: "/figma-images/lifestyle-3.png", filename: "lifestyle-cafe-sang.png" },
+  { url: "/figma-images/lifestyle-4.png", filename: "lifestyle-picnic-summer.png" },
+  { url: "/figma-images/lookbook-1.png", filename: "lookbook-nang-som.png" },
+  { url: "/figma-images/lookbook-2.png", filename: "lookbook-chieu-bien.png" },
+  { url: "/figma-images/lookbook-3.png", filename: "lookbook-pho-he.png" },
+  { url: "/figma-images/lookbook-4.png", filename: "lookbook-dem-tiec.png" },
+  { url: "/figma-images/brand-story.png", filename: "brand-story-lisea.png" },
+  { url: "/figma-images/pdp-main.png", filename: "pdp-banner-showcase.png" },
+];
+
+/**
+ * Nạp bộ ảnh mẫu của shop vào thư viện Cloudflare D1.
+ */
+export async function seedLibraryWithSampleImages(): Promise<{ count: number }> {
+  let count = 0;
+  for (const img of DEFAULT_LIBRARY_IMAGES) {
+    try {
+      await saveExternalMediaImage({
+        url: img.url,
+        filename: img.filename,
+        mimeType: "image/png",
+      });
+      count++;
+    } catch {
+      // ignore
+    }
+  }
+  return { count };
+}
+
+/**
+ * Đẩy toàn bộ ảnh đang lưu tạm trong localStorage lên Cloudflare D1 để mọi người cùng xem được.
+ */
+export async function syncOfflineImagesToCloudflare(): Promise<{
+  synced: number;
+  failed: number;
+}> {
+  const offline = getOfflineImages();
+  if (offline.length === 0) return { synced: 0, failed: 0 };
+
+  let synced = 0;
+  let failed = 0;
+
+  for (const item of offline) {
+    try {
+      const isHttp =
+        item.url.startsWith("http://") ||
+        item.url.startsWith("https://") ||
+        item.url.startsWith("/");
+
+      const payload = isHttp
+        ? {
+            url: item.url,
+            filename: item.filename,
+            mimeType: item.mimeType,
+            size: item.size,
+          }
+        : {
+            file: item.url,
+            filename: item.filename,
+            mimeType: item.mimeType,
+          };
+
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        synced++;
+      } else {
+        failed++;
+      }
+    } catch {
+      failed++;
+    }
+  }
+
+  return { synced, failed };
+}
