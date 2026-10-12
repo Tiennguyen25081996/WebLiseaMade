@@ -9,7 +9,10 @@ describe("media-api", () => {
 
   it("từ chối tải lên file không phải định dạng ảnh", async () => {
     const textFile = new File(["hello world"], "test.txt", { type: "text/plain" });
-    await expect(uploadMediaImage(textFile)).rejects.toThrow("không phải là hình ảnh");
+    await expect(uploadMediaImage(textFile)).rejects.toThrow("Định dạng ảnh không được hỗ trợ");
+
+    const fakeJpg = new File(["not an image"], "malicious.exe", { type: "image/jpeg" });
+    await expect(uploadMediaImage(fakeJpg)).rejects.toThrow("Phần mở rộng file ảnh không hợp lệ");
   });
 
   it("tải lên ảnh thành công qua API từ xa", async () => {

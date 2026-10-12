@@ -231,10 +231,33 @@ describe("server worker and D1 schema", () => {
 
     const res = await worker.fetch(req, env);
     expect(res.status).toBe(201);
+    expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    expect(res.headers.get("X-Frame-Options")).toBe("DENY");
     const data = (await res.json()) as { success: boolean; image: { id: string; url: string } };
     expect(data.success).toBe(true);
     expect(data.image.url).toContain("/api/images/");
     expect(execCalls.some((sql) => sql.includes("INSERT INTO media_files"))).toBe(true);
+  });
+
+  it("POST /api/upload từ chối file có chữ ký (magic bytes) không khớp", async () => {
+    const { db } = createMockDb();
+    const env: Env = { DB: db };
+
+    const req = new Request("http://localhost/api/upload", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        filename: "fake.png",
+        mimeType: "image/png",
+        file: btoa("plain text disguised as png"),
+      }),
+    });
+
+    const res = await worker.fetch(req, env);
+    expect(res.status).toBe(400);
+    const data = (await res.json()) as { success: boolean; error: string };
+    expect(data.success).toBe(false);
+    expect(data.error).toContain("Nội dung file không khớp");
   });
 
   it("GET /api/images lists uploaded images", async () => {

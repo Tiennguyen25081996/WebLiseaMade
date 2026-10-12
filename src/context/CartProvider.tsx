@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { CartContext, lineKey, type CartContextValue } from "./cart-context";
-import { PRODUCTS } from "@/data/products";
+import { useAdminStore } from "@/lib/admin-store";
 import type { CartLine } from "@/types";
 import {
   clampQuantity,
@@ -68,14 +68,15 @@ function writeRawLines(lines: CartLine[]): void {
  * Header badge + CartPage tự cập nhật số lượng.
  */
 export function CartProvider({ children }: { children: ReactNode }) {
+  const { products } = useAdminStore();
   const [state, setState] = useState<CartState>({
     rawLines: readRawLines(),
     dismissedIds: [],
   });
 
   const hydrated = useMemo(
-    () => hydrateLines(state.rawLines, PRODUCTS),
-    [state.rawLines],
+    () => hydrateLines(state.rawLines, products),
+    [state.rawLines, products],
   );
 
   useEffect(() => {

@@ -24,7 +24,7 @@ function Harness() {
 
 /** Let React 19 finish the deferred render/re-render. */
 async function flush() {
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 20));
 }
 
 function currentCart(): CartContextValue {

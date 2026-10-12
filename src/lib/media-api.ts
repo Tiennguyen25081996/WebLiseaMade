@@ -8,6 +8,13 @@ export interface MediaImage {
 }
 
 const STORAGE_KEY_OFFLINE_IMAGES = "liseamade.admin.media.offline.v1";
+const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const ALLOWED_IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif"]);
+
+function hasAllowedImageExtension(filename: string): boolean {
+  const extension = filename.toLowerCase().match(/\.[^.]+$/)?.[0] ?? "";
+  return ALLOWED_IMAGE_EXTENSIONS.has(extension);
+}
 
 function getOfflineImages(): MediaImage[] {
   if (typeof window === "undefined") return [];
@@ -54,8 +61,12 @@ export async function uploadMediaImage(file: File): Promise<{
   source: "remote" | "local_fallback";
   error?: string;
 }> {
-  if (!file.type.startsWith("image/")) {
-    throw new Error("File được chọn không phải là hình ảnh");
+  if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
+    throw new Error("Định dạng ảnh không được hỗ trợ. Chỉ chấp nhận JPG, PNG, WEBP, GIF.");
+  }
+
+  if (!hasAllowedImageExtension(file.name)) {
+    throw new Error("Phần mở rộng file ảnh không hợp lệ");
   }
 
   if (file.size > 10 * 1024 * 1024) {

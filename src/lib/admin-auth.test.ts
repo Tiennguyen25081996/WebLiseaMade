@@ -48,4 +48,34 @@ describe("admin-auth", () => {
     logoutAdmin();
     expect(getAdminSession()).toBeNull();
   });
+
+  it("tự động hủy phiên đăng nhập khi session đã hết hạn (expiresAt trong quá khứ)", () => {
+    loginAdmin("admin", "admin123", true);
+    expect(getAdminSession()).not.toBeNull();
+
+    // Giả lập session cũ đã hết hạn
+    const expiredUser = {
+      username: "admin",
+      name: "Quản trị viên trưởng",
+      role: "Super Admin",
+      loggedInAt: new Date(Date.now() - 10 * 3600 * 1000).toISOString(),
+      expiresAt: new Date(Date.now() - 1000).toISOString(),
+    };
+    localStorage.setItem("liseamade.admin.auth.v1", JSON.stringify(expiredUser));
+
+    expect(getAdminSession()).toBeNull();
+    expect(localStorage.getItem("liseamade.admin.auth.v1")).toBeNull();
+  });
+
+  it("khóa đăng nhập tạm thời khi nhập sai quá 5 lần liên tiếp", () => {
+    for (let i = 0; i < 5; i++) {
+      const res = loginAdmin("admin", "sai_pass");
+      expect(res.success).toBe(false);
+    }
+
+    // Lần thứ 6: bị khóa
+    const lockedRes = loginAdmin("admin", "admin123");
+    expect(lockedRes.success).toBe(false);
+    expect(lockedRes.error).toContain("Đăng nhập bị khóa tạm thời");
+  });
 });

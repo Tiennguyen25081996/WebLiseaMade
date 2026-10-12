@@ -23,7 +23,7 @@ describe("AdminBoardPage", () => {
     expect(screen.getByRole("button", { name: "Đăng nhập hệ thống" })).toBeInTheDocument();
   });
 
-  it("báo lỗi khi nhập sai tài khoản hoặc mật khẩu trên form đăng nhập", () => {
+  it("báo lỗi khi nhập sai tài khoản hoặc mật khẩu trên form đăng nhập", async () => {
     render(
       <MemoryRouter>
         <AdminBoardPage />
@@ -38,7 +38,9 @@ describe("AdminBoardPage", () => {
     fireEvent.change(passInput, { target: { value: "sai_mat_khau" } });
     fireEvent.click(submitBtn);
 
-    expect(screen.getByRole("alert")).toHaveTextContent("Tên đăng nhập hoặc mật khẩu không chính xác.");
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent("Tên đăng nhập hoặc mật khẩu không chính xác.");
+    });
   });
 
   it("cho phép đăng nhập nhanh qua nút tài khoản mẫu Super Admin", async () => {
@@ -224,6 +226,10 @@ describe("AdminBoardPage", () => {
 
     // Thông báo toast thành công xuất hiện
     expect(screen.getByText("Đã cập nhật sản phẩm thành công!")).toBeInTheDocument();
+
+    // Ảnh trên dòng sản phẩm trong bảng đã được cập nhật
+    const updatedImg = screen.getByRole("img", { name: "Áo sơ mi hoa dừa" });
+    expect(updatedImg).toHaveAttribute("src", "/api/images/test-image-123.jpg");
   });
 
   it("chuyển sang tab Đơn hàng và hiển thị bộ lọc đơn", () => {
