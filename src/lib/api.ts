@@ -1,5 +1,7 @@
-import type { PlacedOrder } from "@/types";
-import { findOrderByCode, saveOrder } from "@/lib/orders";
+import type { PlacedOrder, OrderStatus } from "@/types";
+import { findOrderByCode, saveOrder, updateOrderStatus } from "@/lib/orders";
+import { getAdminProducts } from "@/lib/admin-store";
+import { PRODUCTS } from "@/data/products";
 
 /**
  * Interface cho đơn hàng gửi lên /api/orders
@@ -121,6 +123,7 @@ export async function getOrderByCodeApi(code: string): Promise<{
   error?: string;
 }> {
   const cleanCode = code.trim().toUpperCase();
+  const localOrder = findOrderByCode(cleanCode);
 
   try {
     const res = await fetch(`/api/orders/${encodeURIComponent(cleanCode)}`);
@@ -128,10 +131,36 @@ export async function getOrderByCodeApi(code: string): Promise<{
       const data = await res.json().catch(() => null);
       if (data && data.success && data.order) {
         const raw = data.order;
+        const allProducts = getAdminProducts();
+
+        const normalizeStatus = (st: string | undefined): OrderStatus => {
+          if (st === "confirmed") return "processing";
+          if (st === "completed") return "delivered";
+          if (st === "processing" || st === "shipping" || st === "delivered" || st === "cancelled") {
+            return st;
+          }
+          return "pending";
+        };
+
+        // Ưu tiên trạng thái mới nhất giữa local và remote (tránh trường hợp remote trả về 'pending' cũ)
+        const rawStatusNormalized = normalizeStatus(raw.status);
+        const resolvedStatus: OrderStatus =
+          localOrder?.status && localOrder.status !== "pending"
+            ? localOrder.status
+            : rawStatusNormalized;
+
+        const resolvedTrackingCode =
+          localOrder?.trackingCode || raw.tracking_code || raw.trackingCode || undefined;
+        const resolvedCarrier =
+          localOrder?.carrier || raw.carrier || "spx";
+
         // Chuẩn hóa dữ liệu từ backend D1 về định dạng PlacedOrder
         const remoteOrder: PlacedOrder = {
           code: raw.code,
           createdAt: raw.created_at || raw.createdAt || new Date().toISOString(),
+          status: resolvedStatus,
+          trackingCode: resolvedTrackingCode,
+          carrier: resolvedCarrier,
           totals: {
             subtotal: Number(raw.subtotal) || 0,
             shippingFee: Number(raw.shipping_fee ?? raw.shippingFee) || 0,
@@ -139,45 +168,66 @@ export async function getOrderByCodeApi(code: string): Promise<{
             total: Number(raw.total) || 0,
           },
           info: {
-            fullName: raw.customer_name || raw.customerName || "",
-            phone: raw.phone || "",
-            email: raw.email || "",
-            address: raw.address || "",
-            province: raw.province || "",
-            district: raw.district || "",
-            note: raw.note || "",
-            paymentMethod: raw.payment_method || raw.paymentMethod || "cod",
+            fullName: raw.customer_name || raw.customerName || localOrder?.info.fullName || "",
+            phone: raw.phone || localOrder?.info.phone || "",
+            email: raw.email || localOrder?.info.email || "",
+            address: raw.address || localOrder?.info.address || "",
+            province: raw.province || localOrder?.info.province || "",
+            district: raw.district || localOrder?.info.district || "",
+            note: raw.note || localOrder?.info.note || "",
+            paymentMethod: raw.payment_method || raw.paymentMethod || localOrder?.info.paymentMethod || "cod",
           },
           lines: Array.isArray(raw.items)
-            ? raw.items.map((item: Record<string, unknown>) => ({
-                productId: String(item.product_id ?? item.productId ?? ""),
-                variantId: String(item.variant_id ?? item.variantId ?? ""),
-                quantity: Number(item.quantity) || 1,
-                unitPrice: Number(item.price) || 0,
-                lineTotal: Number(item.line_total ?? item.lineTotal) || 0,
-                product: {
-                  id: String(item.product_id ?? item.productId ?? ""),
-                  name: String(item.product_name ?? item.productName ?? ""),
-                  price: Number(item.price) || 0,
-                  category: "ao" as const,
-                  images: [],
-                  shortDescription: "",
-                  description: "",
-                  materials: [],
-                  variants: [],
-                  rating: 5,
-                  reviewCount: 0,
-                  badges: [],
-                },
-                variant: {
-                  id: String(item.variant_id ?? item.variantId ?? ""),
-                  label: String(item.variant_label ?? item.variantLabel ?? ""),
-                  kind: "size" as const,
-                  inStock: true,
-                },
-              }))
-            : [],
+            ? raw.items.map((item: Record<string, unknown>) => {
+                const pId = String(item.product_id ?? item.productId ?? "");
+                const localLine = localOrder?.lines.find((l) => l.productId === pId);
+                const catalogProduct =
+                  allProducts.find((p) => p.id === pId) ||
+                  PRODUCTS.find((p) => p.id === pId);
+
+                const images =
+                  localLine?.product?.images && localLine.product.images.length > 0
+                    ? localLine.product.images
+                    : catalogProduct?.images && catalogProduct.images.length > 0
+                      ? catalogProduct.images
+                      : [];
+
+                return {
+                  productId: pId,
+                  variantId: String(item.variant_id ?? item.variantId ?? ""),
+                  quantity: Number(item.quantity) || 1,
+                  unitPrice: Number(item.price) || 0,
+                  lineTotal: Number(item.line_total ?? item.lineTotal) || 0,
+                  product: {
+                    id: pId,
+                    name: String(item.product_name ?? item.productName ?? catalogProduct?.name ?? pId),
+                    price: Number(item.price) || catalogProduct?.price || 0,
+                    category: catalogProduct?.category || ("ao" as const),
+                    images,
+                    shortDescription: catalogProduct?.shortDescription || "",
+                    description: catalogProduct?.description || "",
+                    materials: catalogProduct?.materials || [],
+                    variants: catalogProduct?.variants || [],
+                    rating: catalogProduct?.rating || 5,
+                    reviewCount: catalogProduct?.reviewCount || 0,
+                    badges: catalogProduct?.badges || [],
+                  },
+                  variant: {
+                    id: String(item.variant_id ?? item.variantId ?? ""),
+                    label: String(item.variant_label ?? item.variantLabel ?? localLine?.variant?.label ?? ""),
+                    kind: (localLine?.variant?.kind || "size") as "size" | "color",
+                    swatch: localLine?.variant?.swatch,
+                    inStock: true,
+                  },
+                };
+              })
+            : localOrder?.lines || [],
         };
+
+        // Đồng bộ ngược lại localStorage nếu trạng thái remote mới hơn
+        if (localOrder && resolvedStatus !== localOrder.status) {
+          updateOrderStatus(cleanCode, resolvedStatus);
+        }
 
         return {
           order: remoteOrder,
@@ -190,7 +240,6 @@ export async function getOrderByCodeApi(code: string): Promise<{
   }
 
   // Fallback sang localStorage
-  const localOrder = findOrderByCode(cleanCode);
   if (localOrder) {
     return {
       order: localOrder,
@@ -203,6 +252,28 @@ export async function getOrderByCodeApi(code: string): Promise<{
     source: "none",
     error: "Không tìm thấy đơn hàng",
   };
+}
+
+/**
+ * Cập nhật trạng thái đơn hàng (đồng bộ cả LocalStorage và Backend D1).
+ */
+export async function updateOrderStatusApi(
+  code: string,
+  newStatus: OrderStatus,
+): Promise<boolean> {
+  // Cập nhật localStorage ngay lập tức
+  updateOrderStatus(code, newStatus);
+
+  try {
+    const res = await fetch(`/api/orders/${encodeURIComponent(code)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: newStatus }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 /**

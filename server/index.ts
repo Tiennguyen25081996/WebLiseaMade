@@ -407,6 +407,39 @@ export default {
           });
         }
 
+        // PATCH /api/orders/:code - Cập nhật trạng thái đơn hàng (Admin)
+        if (url.pathname.startsWith("/api/orders/") && request.method === "PATCH") {
+          const code = decodeURIComponent(url.pathname.replace("/api/orders/", "")).trim();
+          if (!isValidOrderCode(code)) {
+            return apiJson({ success: false, error: "Định dạng mã đơn hàng không hợp lệ (LM-XXXXXX)" }, 400);
+          }
+
+          const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+          if (!body) {
+            return apiJson({ success: false, error: "Dữ liệu cập nhật không hợp lệ" }, 400);
+          }
+
+          let dbStatus: string | undefined;
+          if (typeof body.status === "string") {
+            const s = body.status;
+            if (s === "processing") dbStatus = "confirmed";
+            else if (s === "delivered") dbStatus = "completed";
+            else if (["pending", "confirmed", "shipping", "completed", "cancelled"].includes(s)) {
+              dbStatus = s;
+            }
+          }
+
+          const updatedAt = new Date().toISOString();
+          if (dbStatus) {
+            await db
+              .prepare("UPDATE orders SET status = ?, updated_at = ? WHERE code = ? COLLATE NOCASE")
+              .bind(dbStatus, updatedAt, code)
+              .run();
+          }
+
+          return apiJson({ success: true, status: dbStatus || body.status });
+        }
+
         // POST /api/events
         if (url.pathname === "/api/events" && request.method === "POST") {
           const body = (await request.json().catch(() => null)) as Partial<CustomerEventInput> | null;

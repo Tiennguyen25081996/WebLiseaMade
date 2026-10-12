@@ -122,6 +122,60 @@ describe("api client", () => {
     expect(res.order?.code).toBe("LM-TEST01");
     expect(res.order?.totals.total).toBe(700000);
     expect(res.order?.lines).toHaveLength(1);
+    expect(res.order?.status).toBe("pending");
+    // Verify product has images
+    expect(res.order?.lines[0].product.images).toBeDefined();
+  });
+
+  it("getOrderByCodeApi ưu tiên status đang xử lý từ localOrder khi admin đã cập nhật", async () => {
+    // Admin cập nhật status sang processing trong localOrder
+    const updatedLocalOrder: PlacedOrder = {
+      ...sampleOrder,
+      status: "processing",
+    };
+    localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify([updatedLocalOrder]));
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        order: {
+          code: "LM-TEST01",
+          status: "pending", // remote vẫn là pending
+          customer_name: "Nguyễn Văn A",
+          items: [],
+        },
+      }),
+    } as Response);
+
+    const res = await getOrderByCodeApi("LM-TEST01");
+    expect(res.source).toBe("remote");
+    // Phải lấy status "processing" từ localOrder mà Admin vừa đổi
+    expect(res.order?.status).toBe("processing");
+  });
+
+  it("getOrderByCodeApi tự động lấy ảnh sản phẩm từ catalog khi remote order items không có ảnh", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        order: {
+          code: "LM-TEST01",
+          items: [
+            {
+              product_id: "p1", // sản phẩm có trong catalog
+              product_name: "Áo sơ mi hoa dừa",
+              quantity: 1,
+              price: 389000,
+            },
+          ],
+        },
+      }),
+    } as Response);
+
+    const res = await getOrderByCodeApi("LM-TEST01");
+    expect(res.order?.lines[0].product.images.length).toBeGreaterThan(0);
+    expect(res.order?.lines[0].product.images[0]).toContain("product-feat-1.png");
   });
 
   it("getOrderByCodeApi falls back to local when remote 404 or fails", async () => {
