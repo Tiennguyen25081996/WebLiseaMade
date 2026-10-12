@@ -136,6 +136,87 @@ export function getAdminProducts(): Product[] {
   }
 }
 
+async function syncSettingToRemote(key: string, value: unknown): Promise<void> {
+  if (typeof window === "undefined") return;
+  try {
+    await fetch("/api/site-settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, value }),
+    });
+  } catch {
+    // offline or network error
+  }
+}
+
+let hasSyncedOnce = false;
+
+/**
+ * Tải cài đặt mới nhất (sản phẩm, trang chủ, danh mục) từ Cloudflare D1 về trình duyệt.
+ */
+export async function syncStoreWithRemote(): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+  try {
+    const res = await fetch("/api/site-settings");
+    if (!res.ok) return false;
+    const json = (await res.json().catch(() => null)) as {
+      success?: boolean;
+      settings?: Record<string, unknown>;
+    } | null;
+
+    if (json?.success && json.settings) {
+      let changed = false;
+      if (Array.isArray(json.settings.products) && json.settings.products.length > 0) {
+        localStorage.setItem(STORAGE_KEY_PRODUCTS, JSON.stringify(json.settings.products));
+        changed = true;
+      }
+      if (json.settings.home_settings && typeof json.settings.home_settings === "object") {
+        localStorage.setItem(STORAGE_KEY_HOMEPAGE, JSON.stringify(json.settings.home_settings));
+        changed = true;
+      }
+      if (Array.isArray(json.settings.categories) && json.settings.categories.length > 0) {
+        localStorage.setItem(STORAGE_KEY_CATEGORIES, JSON.stringify(json.settings.categories));
+        changed = true;
+      }
+      if (Array.isArray(json.settings.discounts) && json.settings.discounts.length > 0) {
+        localStorage.setItem(STORAGE_KEY_DISCOUNTS, JSON.stringify(json.settings.discounts));
+        changed = true;
+      }
+      if (changed) {
+        notifySubscribers();
+      }
+      return true;
+    }
+  } catch {
+    // Offline
+  }
+  return false;
+}
+
+/**
+ * Đẩy toàn bộ cấu hình sản phẩm và trang chủ hiện tại lên Cloudflare D1 để mọi người cùng xem được.
+ */
+export async function pushAllSettingsToRemote(): Promise<{ success: boolean; error?: string }> {
+  try {
+    const prods = getAdminProducts();
+    const home = getAdminHomePageSettings();
+    const cats = getAdminCategories();
+    const discs = getAdminDiscountEvents();
+
+    await Promise.all([
+      syncSettingToRemote("products", prods),
+      syncSettingToRemote("home_settings", home),
+      syncSettingToRemote("categories", cats),
+      syncSettingToRemote("discounts", discs),
+    ]);
+
+    return { success: true };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { success: false, error: message };
+  }
+}
+
 export function saveAdminProduct(product: Product): Product {
   const current = getAdminProducts();
   const index = current.findIndex((p) => p.id === product.id);
@@ -150,6 +231,7 @@ export function saveAdminProduct(product: Product): Product {
 
   if (typeof window !== "undefined") {
     localStorage.setItem(STORAGE_KEY_PRODUCTS, JSON.stringify(updated));
+    void syncSettingToRemote("products", updated);
   }
   notifySubscribers();
   return product;
@@ -162,6 +244,7 @@ export function deleteAdminProduct(productId: string): boolean {
 
   if (typeof window !== "undefined") {
     localStorage.setItem(STORAGE_KEY_PRODUCTS, JSON.stringify(next));
+    void syncSettingToRemote("products", next);
   }
   notifySubscribers();
   return true;
@@ -247,6 +330,7 @@ export function saveAdminCategory(category: Category): Category {
 
   if (typeof window !== "undefined") {
     localStorage.setItem(STORAGE_KEY_CATEGORIES, JSON.stringify(updated));
+    void syncSettingToRemote("categories", updated);
   }
   notifySubscribers();
   return category;
@@ -271,6 +355,7 @@ export function deleteAdminCategory(categoryId: string): { success: boolean; mes
 
   if (typeof window !== "undefined") {
     localStorage.setItem(STORAGE_KEY_CATEGORIES, JSON.stringify(next));
+    void syncSettingToRemote("categories", next);
   }
   notifySubscribers();
   return { success: true };
@@ -311,6 +396,7 @@ export function saveAdminDiscountEvent(event: DiscountEvent): DiscountEvent {
 
   if (typeof window !== "undefined") {
     localStorage.setItem(STORAGE_KEY_DISCOUNTS, JSON.stringify(updated));
+    void syncSettingToRemote("discounts", updated);
   }
   notifySubscribers();
   return normalized;
@@ -326,6 +412,7 @@ export function toggleDiscountEventStatus(eventId: string): boolean {
 
   if (typeof window !== "undefined") {
     localStorage.setItem(STORAGE_KEY_DISCOUNTS, JSON.stringify(updated));
+    void syncSettingToRemote("discounts", updated);
   }
   notifySubscribers();
   return true;
@@ -338,6 +425,7 @@ export function deleteAdminDiscountEvent(eventId: string): boolean {
 
   if (typeof window !== "undefined") {
     localStorage.setItem(STORAGE_KEY_DISCOUNTS, JSON.stringify(next));
+    void syncSettingToRemote("discounts", next);
   }
   notifySubscribers();
   return true;
@@ -409,6 +497,12 @@ export function useAdminStore() {
   useEffect(() => {
     const handleUpdate = () => setVersion((v) => v + 1);
     window.addEventListener(ADMIN_UPDATE_EVENT, handleUpdate);
+
+    if (!hasSyncedOnce) {
+      hasSyncedOnce = true;
+      void syncStoreWithRemote();
+    }
+
     return () => window.removeEventListener(ADMIN_UPDATE_EVENT, handleUpdate);
   }, []);
 
@@ -424,6 +518,8 @@ export function useAdminStore() {
     discounts,
     homeSettings,
     chatbotConfig,
+    syncWithRemote: syncStoreWithRemote,
+    pushAllToRemote: pushAllSettingsToRemote,
     saveProduct: saveAdminProduct,
     deleteProduct: deleteAdminProduct,
     saveCategory: saveAdminCategory,

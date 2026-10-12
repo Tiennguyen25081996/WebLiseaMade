@@ -139,6 +139,11 @@ export async function initDb(db: D1Database): Promise<void> {
         data TEXT
       );
       CREATE INDEX IF NOT EXISTS idx_media_files_created ON media_files(created_at DESC);
+      CREATE TABLE IF NOT EXISTS site_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
     `);
     dbInitialized = true;
   } catch (err) {
@@ -713,6 +718,78 @@ export default {
             // Không lỗi nếu bảng chưa tồn tại
           }
           return apiJson({ success: true, id: imageId });
+        }
+
+        // GET /api/site-settings - Lấy cài đặt website (sản phẩm, trang chủ, danh mục)
+        if (url.pathname === "/api/site-settings" && request.method === "GET") {
+          try {
+            const rows = await db
+              .prepare("SELECT key, value FROM site_settings")
+              .all<{ key: string; value: string }>();
+            const result: Record<string, unknown> = {};
+            for (const row of rows.results || []) {
+              try {
+                result[row.key] = JSON.parse(row.value);
+              } catch {
+                result[row.key] = row.value;
+              }
+            }
+            return apiJson({ success: true, settings: result });
+          } catch {
+            return apiJson({ success: true, settings: {} });
+          }
+        }
+
+        // POST /api/site-settings - Cập nhật cài đặt website lên D1
+        if (url.pathname === "/api/site-settings" && request.method === "POST") {
+          const body = (await request.json().catch(() => null)) as {
+            key?: string;
+            value?: unknown;
+          } | null;
+          if (!body || !body.key || body.value === undefined) {
+            return apiJson({ success: false, error: "Thiếu key hoặc value" }, 400);
+          }
+          const key = String(body.key).trim();
+          const valueStr =
+            typeof body.value === "string" ? body.value : JSON.stringify(body.value);
+          const now = new Date().toISOString();
+
+          try {
+            await db
+              .prepare(
+                `INSERT INTO site_settings (key, value, updated_at)
+                 VALUES (?, ?, ?)
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
+              )
+              .bind(key, valueStr, now)
+              .run();
+          } catch {
+            // Auto-heal nếu bảng site_settings chưa tồn tại
+            try {
+              await db.exec(`
+                CREATE TABLE IF NOT EXISTS site_settings (
+                  key TEXT PRIMARY KEY,
+                  value TEXT NOT NULL,
+                  updated_at TEXT NOT NULL
+                );
+              `);
+              await db
+                .prepare(
+                  `INSERT INTO site_settings (key, value, updated_at)
+                   VALUES (?, ?, ?)
+                   ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
+                )
+                .bind(key, valueStr, now)
+                .run();
+            } catch (err) {
+              return apiJson(
+                { success: false, error: "Không thể lưu cài đặt vào database" },
+                500
+              );
+            }
+          }
+
+          return apiJson({ success: true, key });
         }
 
         return apiJson({ success: false, error: "API route not found" }, 404);

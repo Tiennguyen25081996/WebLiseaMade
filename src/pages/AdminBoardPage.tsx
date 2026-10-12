@@ -99,6 +99,25 @@ export default function AdminBoardPage() {
     }
   };
 
+  const [isPushingD1, setIsPushingD1] = useState(false);
+
+  const handlePushToD1 = async () => {
+    setIsPushingD1(true);
+    showToast("Đang đồng bộ cấu hình lên Cloudflare D1...");
+    try {
+      const res = await pushAllToRemote();
+      if (res.success) {
+        showToast("Đã đồng bộ sản phẩm & trang chủ lên Cloudflare D1 thành công!");
+      } else {
+        showToast("Lỗi đồng bộ: " + (res.error || "Vui lòng thử lại"));
+      }
+    } catch {
+      showToast("Lỗi kết nối khi đồng bộ.");
+    } finally {
+      setIsPushingD1(false);
+    }
+  };
+
   // Admin Store
   const {
     products,
@@ -106,6 +125,7 @@ export default function AdminBoardPage() {
     discounts,
     homeSettings,
     chatbotConfig,
+    pushAllToRemote,
     saveProduct,
     deleteProduct,
     saveCategory,
@@ -250,6 +270,15 @@ export default function AdminBoardPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handlePushToD1}
+            disabled={isPushingD1}
+            className="rounded-hair border border-lagoon-600 bg-lagoon-50 px-3 py-2 text-xs font-medium text-lagoon-800 hover:bg-lagoon-100 transition-colors flex items-center gap-1.5"
+            title="Đẩy toàn bộ sản phẩm và cài đặt trang chủ lên Cloudflare D1 để khách hàng và mọi máy khác cùng thấy"
+          >
+            <span>{isPushingD1 ? "Đang đồng bộ..." : "☁️ Đồng bộ lên Cloudflare D1"}</span>
+          </button>
           <div className="flex items-center gap-2 rounded-hair border border-sand-300 bg-sand-100 px-3 py-1.5 text-xs text-ink-700">
             <UserIcon className="h-3.5 w-3.5 text-ink-500" />
             <span className="font-medium text-ink-900">{user?.username}</span>
