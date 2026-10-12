@@ -130,6 +130,43 @@ export async function uploadMediaImage(file: File): Promise<{
 }
 
 /**
+ * Tải đồng thời hoặc tuần tự nhiều ảnh lên Cloudflare có thông báo tiến trình.
+ */
+export async function uploadMultipleMediaImages(
+  files: File[],
+  onProgress?: (progress: { current: number; total: number; filename: string }) => void,
+): Promise<{
+  successful: MediaImage[];
+  failed: Array<{ file: File; error: string }>;
+}> {
+  const successful: MediaImage[] = [];
+  const failed: Array<{ file: File; error: string }> = [];
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    onProgress?.({
+      current: i + 1,
+      total: files.length,
+      filename: file.name,
+    });
+
+    try {
+      const res = await uploadMediaImage(file);
+      if (res.success && res.image) {
+        successful.push(res.image);
+      } else {
+        failed.push({ file, error: res.error || "Không thể tải ảnh" });
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      failed.push({ file, error: message });
+    }
+  }
+
+  return { successful, failed };
+}
+
+/**
  * Lấy danh sách ảnh đã upload trên Cloudflare.
  */
 export async function getMediaImages(): Promise<MediaImage[]> {
