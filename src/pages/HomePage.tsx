@@ -1,59 +1,46 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/Button";
-import { SITE } from "@/data/site";
 import { useAdminStore } from "@/lib/admin-store";
 import { getCategoryName } from "@/data/categories";
-import { formatCompact, formatVnd } from "@/lib/format";
+import { formatVnd } from "@/lib/format";
 import { ProductCard } from "@/components/product/ProductCard";
 import { ProductImage } from "@/components/product/ProductImage";
 
 /**
  * Trang chủ theo Figma 62:33 (1440×4820): Hero → Notice → Featured →
  * Lifestyle → Lookbook → BrandStory → TikTok.
- * Ảnh qua `images` thật trong `public/shop-tiktok`, sản phẩm qua ProductCard.
- * Tên/giá mẫu giữ nguyên + banner "Catalog mẫu".
+ * Dữ liệu văn bản và hình ảnh đọc trực tiếp từ `homeSettings` (quản trị trong Admin).
+ * Khi admin cập nhật ảnh/chữ trong Admin Board, Trang chủ lập tức đồng bộ thời gian thực.
  */
 export default function HomePage() {
-  const { products } = useAdminStore();
+  const { products, homeSettings } = useAdminStore();
   const featured = products.slice(0, 3);
-  const lifestyle = [
-    { src: "/figma-images/lifestyle-1.png", caption: "Đi biển · Voan hoa" },
-    { src: "/figma-images/lifestyle-2.png", caption: "Dạo phố · Linen mát" },
-    { src: "/figma-images/lifestyle-3.png", caption: "Cafe sáng · Cotton nhẹ" },
-    { src: "/figma-images/lifestyle-4.png", caption: "Picnic · Summer 2026" },
-  ];
-  const lookbook = [
-    { src: "/figma-images/lookbook-1.png", caption: "Nắng sớm · Sơ mi voan" },
-    { src: "/figma-images/lookbook-2.png", caption: "Chiều biển · Maxi bay" },
-    { src: "/figma-images/lookbook-3.png", caption: "Phố hè · Linen đôi" },
-    { src: "/figma-images/lookbook-4.png", caption: "Đêm tiệc · Croptop" },
-  ];
-
-  /** Featured section dùng ảnh hero thật từ Figma/desktop design. */
+  const lifestyle = homeSettings.lifestyleItems;
+  const lookbook = homeSettings.lookbookItems;
 
   return (
     <div className="pb-16">
-      {/* Hero (Figma 62:35): eyebrow + H1 120 + P + CTA, ảnh phải. */}
+      {/* Hero (Figma 62:35): eyebrow + H1 + P + CTA, ảnh phải. */}
       <section className="container-page grid items-center gap-8 md:grid-cols-12">
         <div className="order-2 flex flex-col gap-4 md:order-1 md:col-span-5">
           <p className="eyebrow-label text-lagoon-600">
-            Thời trang &amp; phụ kiện Hawaii Summer
+            {homeSettings.heroEyebrow}
           </p>
           <h1 className="font-display text-display-lg text-ink-900 md:text-display-xl">
-            {SITE.brand}
+            {homeSettings.heroTitle}
           </h1>
           <p className="max-w-prose text-base text-ink-500">
-            Voan, linen, cotton — nhẹ mát cho cả tuần nắng.
+            {homeSettings.heroDescription}
           </p>
           <div>
-            <Button to="/san-pham">Khám phá bộ sưu tập →</Button>
+            <Button to={homeSettings.heroCtaLink}>{homeSettings.heroCtaText}</Button>
           </div>
         </div>
         <div className="order-1 md:order-2 md:col-span-7">
           <div className="hover-zoom animate-image-enter aspect-4/5 overflow-hidden rounded-hair md:aspect-4/3">
             <ProductImage
-              src="/figma-images/hero.png"
-              alt={`${SITE.brand} — bộ sưu tập Hawaii Summer`}
+              src={homeSettings.heroImage}
+              alt={`${homeSettings.heroTitle} — ${homeSettings.heroEyebrow}`}
               seed="hero"
               priority
               showPlaceholderNote={false}
@@ -65,13 +52,12 @@ export default function HomePage() {
 
       {/* Featured (Figma 62:37): eyebrow + H2 + 3 cards + CTA Xem tất cả. */}
       <section className="container-page mt-14" aria-labelledby="featured-h2">
-        <p className="eyebrow-label">Nổi bật mùa hè</p>
+        <p className="eyebrow-label">{homeSettings.featuredEyebrow}</p>
         <h2 id="featured-h2" className="mt-2 font-display text-display-md text-ink-900">
-          Sản phẩm bán chạy
+          {homeSettings.featuredTitle}
         </h2>
         <div className="mt-6 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
           {featured.map((product) => {
-            /** Featured dùng hero images thật từ Figma desktop design: mỗi category seed riêng. */
             const category = getCategoryName(product.category);
             const seedMap: Record<string, string[]> = {
               "Áo": ["/shop-tiktok/feat1.jpg"],
@@ -79,30 +65,31 @@ export default function HomePage() {
               "Set đồ": ["/shop-tiktok/cat3.jpg"],
               "Phụ kiện": ["/shop-tiktok/cat4.jpg"],
             };
-            const productWithImages = product.images.length > 0
-              ? product
-              : { ...product, images: seedMap[category] ?? ["/shop-tiktok/feat2.jpg"] };
+            const productWithImages =
+              product.images.length > 0
+                ? product
+                : { ...product, images: seedMap[category] ?? ["/shop-tiktok/feat2.jpg"] };
 
             return <ProductCard key={product.id} product={productWithImages} />;
           })}
         </div>
         <div className="mt-6">
-          <Button to="/san-pham">Xem tất cả sản phẩm →</Button>
+          <Button to="/san-pham">{homeSettings.featuredCtaText}</Button>
         </div>
       </section>
 
       {/* Lifestyle (Figma 62:192): 4 ảnh caption scrim. */}
       <section className="container-page mt-16" aria-labelledby="life-h2">
-        <p className="eyebrow-label">Phong cách sống Hawaii</p>
+        <p className="eyebrow-label">{homeSettings.lifestyleEyebrow}</p>
         <h2 id="life-h2" className="mt-2 font-display text-display-md text-ink-900">
-          Mặc hè như đi biển
+          {homeSettings.lifestyleTitle}
         </h2>
         <p className="mt-2 text-sm text-ink-700">
-          Voan, linen, cotton — nhẹ, mát, phối sẵn cho cả tuần nắng.
+          {homeSettings.lifestyleDescription}
         </p>
         <div className="mt-6 grid grid-cols-2 gap-5 lg:grid-cols-4">
-          {lifestyle.map((item) => (
-            <figure key={item.src} className="hover-zoom rounded-hair">
+          {lifestyle.map((item, idx) => (
+            <figure key={item.id || item.src || idx} className="hover-zoom rounded-hair">
               <ProductImage
                 src={item.src}
                 alt={item.caption}
@@ -120,13 +107,13 @@ export default function HomePage() {
 
       {/* Lookbook (Figma 62:193): 4 ảnh thẳng baseline. */}
       <section className="container-page mt-16" aria-labelledby="look-h2">
-        <p className="eyebrow-label">Lookbook mùa hè</p>
+        <p className="eyebrow-label">{homeSettings.lookbookEyebrow}</p>
         <h2 id="look-h2" className="mt-2 font-display text-display-md text-ink-900">
-          Phối đồ theo khoảnh khắc
+          {homeSettings.lookbookTitle}
         </h2>
         <div className="mt-6 grid grid-cols-2 gap-5 lg:grid-cols-4">
-          {lookbook.map((item) => (
-            <figure key={item.src} className="hover-zoom rounded-hair">
+          {lookbook.map((item, idx) => (
+            <figure key={item.id || item.src || idx} className="hover-zoom rounded-hair">
               <ProductImage
                 src={item.src}
                 alt={item.caption}
@@ -145,24 +132,24 @@ export default function HomePage() {
       {/* BrandStory (Figma 62:194): quote + CTA + contact line + ảnh. */}
       <section className="container-page mt-16 grid items-center gap-8 md:grid-cols-2">
         <div>
-          <p className="eyebrow-label text-lagoon-600">Câu chuyện thương hiệu</p>
+          <p className="eyebrow-label text-lagoon-600">{homeSettings.brandStoryEyebrow}</p>
           <h2 className="mt-2 font-display text-display-md text-ink-900">
-            May cho mùa hè Việt
+            {homeSettings.brandStoryTitle}
           </h2>
           <blockquote className="mt-4 font-display text-display-sm text-lagoon-600 italic">
-            “Mỗi đường may đều hướng về biển — nhẹ, mát, tự do.”
+            {homeSettings.brandStoryQuote}
           </blockquote>
           <div className="mt-5">
-            <Button to="/gioi-thieu">Câu chuyện của chúng tôi →</Button>
+            <Button to={homeSettings.brandStoryCtaLink}>{homeSettings.brandStoryCtaText}</Button>
           </div>
           <p className="mt-4 text-sm text-ink-500">
-            {SITE.tiktokHandle} · Hotline {SITE.hotlineDisplay}
+            {homeSettings.brandStoryContact}
           </p>
         </div>
         <div className="hover-zoom animate-image-enter aspect-4/5 overflow-hidden rounded-hair">
           <ProductImage
-            src="/figma-images/brand-story.png"
-            alt="Câu chuyện thương hiệu LiseaMade"
+            src={homeSettings.brandStoryImage}
+            alt={homeSettings.brandStoryTitle}
             seed="story"
             showPlaceholderNote={false}
             className="h-full w-full"
@@ -174,21 +161,20 @@ export default function HomePage() {
       <section className="container-page mt-16 grid items-center gap-6 md:grid-cols-2" aria-label="TikTok của shop">
         <div>
           <p className="eyebrow-label text-lagoon-600">
-            {SITE.tiktokHandle} trên TikTok
+            {homeSettings.tiktokEyebrow}
           </p>
           <p className="mt-2 font-display text-display-sm text-ink-900">
-            {formatCompact(SITE.stats.followers)} followers ·{" "}
-            {formatCompact(SITE.stats.likes)} likes
+            {homeSettings.tiktokFollowersText} · {homeSettings.tiktokLikesText}
           </p>
         </div>
         <div className="md:text-right">
           <a
-            href={SITE.tiktokUrl}
+            href={homeSettings.tiktokUrl}
             target="_blank"
             rel="noreferrer noopener"
             className="underline-reveal text-sm font-medium text-ink-900 hover:text-lagoon-700"
           >
-            Follow {SITE.tiktokHandle} →
+            {homeSettings.tiktokCtaText}
           </a>
         </div>
       </section>

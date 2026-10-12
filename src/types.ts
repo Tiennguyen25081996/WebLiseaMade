@@ -103,3 +103,53 @@ export interface CatalogQuery {
   q: string;
   sort: SortKey;
 }
+
+/** Cấu hình các mục hiển thị dạng ảnh kèm chú thích trên trang chủ. */
+export interface HomeSectionItem {
+  id: string;
+  src: string;
+  caption: string;
+}
+
+/** Toàn bộ cấu hình văn bản và hình ảnh của Trang chủ. */
+export interface HomePageSettings {
+  // 1. Hero banner
+  heroEyebrow: string;
+  heroTitle: string;
+  heroDescription: string;
+  heroCtaText: string;
+  heroCtaLink: string;
+  heroImage: string;
+
+  // 2. Featured
+  featuredEyebrow: string;
+  featuredTitle: string;
+  featuredCtaText: string;
+
+  // 3. Lifestyle
+  lifestyleEyebrow: string;
+  lifestyleTitle: string;
+  lifestyleDescription: string;
+  lifestyleItems: HomeSectionItem[];
+
+  // 4. Lookbook
+  lookbookEyebrow: string;
+  lookbookTitle: string;
+  lookbookItems: HomeSectionItem[];
+
+  // 5. Brand Story
+  brandStoryEyebrow: string;
+  brandStoryTitle: string;
+  brandStoryQuote: string;
+  brandStoryCtaText: string;
+  brandStoryCtaLink: string;
+  brandStoryImage: string;
+  brandStoryContact: string;
+
+  // 6. TikTok / Social
+  tiktokEyebrow: string;
+  tiktokFollowersText: string;
+  tiktokLikesText: string;
+  tiktokCtaText: string;
+  tiktokUrl: string;
+}

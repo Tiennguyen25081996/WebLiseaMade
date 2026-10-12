@@ -26,8 +26,9 @@ import { ProductEditModal } from "@/components/admin/ProductEditModal";
 import { CategoryEditModal } from "@/components/admin/CategoryEditModal";
 import { DiscountEditModal } from "@/components/admin/DiscountEditModal";
 import { ConfirmDeleteModal } from "@/components/admin/ConfirmDeleteModal";
+import { AdminHomeSettingsTab } from "@/components/admin/AdminHomeSettingsTab";
 
-type AdminTab = "overview" | "products" | "categories" | "discounts" | "media" | "orders";
+type AdminTab = "overview" | "products" | "categories" | "discounts" | "media" | "orders" | "home_settings";
 
 export default function AdminBoardPage() {
   const location = useLocation();
@@ -91,6 +92,7 @@ export default function AdminBoardPage() {
     products,
     categories,
     discounts,
+    homeSettings,
     saveProduct,
     deleteProduct,
     saveCategory,
@@ -98,6 +100,8 @@ export default function AdminBoardPage() {
     saveDiscount,
     toggleDiscount,
     deleteDiscount,
+    saveHomeSettings,
+    resetHomeSettings,
     resetToDefaults,
   } = useAdminStore();
 
@@ -327,6 +331,17 @@ export default function AdminBoardPage() {
             <ClipboardListIcon className="h-3.5 w-3.5" />
             <span>Đơn hàng ({orders.length})</span>
           </button>
+          <button
+            type="button"
+            onClick={() => setCurrentTab("home_settings")}
+            className={`tap-feedback rounded-hair px-4 py-2 text-xs font-medium transition-all flex items-center gap-1.5 ${
+              currentTab === "home_settings"
+                ? "bg-ink-900 text-sand-50 shadow-2xs"
+                : "bg-sand-100 text-ink-700 hover:bg-sand-200"
+            }`}
+          >
+            <span>🏠 Cài đặt Trang chủ</span>
+          </button>
         </div>
 
         {/* Tab Actions */}
@@ -472,6 +487,21 @@ export default function AdminBoardPage() {
           onUpdateStatus={handleUpdateOrderStatus}
           onViewOrder={setViewingOrder}
         />
+      )}
+
+      {currentTab === "home_settings" && (
+        <div className="mt-6 animate-fade-in">
+          <AdminHomeSettingsTab
+            settings={homeSettings}
+            onSave={(newSettings) => {
+              saveHomeSettings(newSettings);
+            }}
+            onReset={() => {
+              resetHomeSettings();
+            }}
+            showToast={showToast}
+          />
+        </div>
       )}
 
       {/* Modals */}

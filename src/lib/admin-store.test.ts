@@ -11,6 +11,11 @@ import {
   toggleDiscountEventStatus,
   deleteAdminDiscountEvent,
   resetAdminData,
+  getProductsUsingImage,
+  removeImageUrlFromProducts,
+  getAdminHomePageSettings,
+  saveAdminHomePageSettings,
+  resetAdminHomePageSettings,
 } from "./admin-store";
 import type { DiscountEvent } from "./admin-store";
 import { PRODUCTS } from "@/data/products";
@@ -164,6 +169,45 @@ describe("admin-store", () => {
 
       resetAdminData();
       expect(getAdminProducts().length).toBe(PRODUCTS.length);
+    });
+
+    it("tìm kiếm và tự động gỡ ảnh khỏi sản phẩm khi xóa ảnh trong Media Hub", () => {
+      const prod = getAdminProducts()[0];
+      const testImageUrl = "https://lh3.googleusercontent.com/d/test_delete_img_123";
+      saveAdminProduct({
+        ...prod,
+        images: [testImageUrl, ...prod.images],
+      });
+
+      // Kiểm tra tìm thấy sản phẩm đang dùng ảnh
+      const usingProds = getProductsUsingImage(testImageUrl);
+      expect(usingProds.length).toBe(1);
+      expect(usingProds[0].id).toBe(prod.id);
+
+      // Gỡ ảnh khỏi các sản phẩm
+      const { affectedCount } = removeImageUrlFromProducts(testImageUrl);
+      expect(affectedCount).toBe(1);
+
+      // Kiểm tra sản phẩm đã bị gỡ ảnh đó
+      const updatedProd = getAdminProducts().find((p) => p.id === prod.id);
+      expect(updatedProd?.images.includes(testImageUrl)).toBe(false);
+    });
+
+    it("lưu và khôi phục cài đặt Trang chủ HomePageSettings", () => {
+      const initial = getAdminHomePageSettings();
+      expect(initial.heroTitle).toBe("LiseaMade");
+
+      saveAdminHomePageSettings({
+        ...initial,
+        heroTitle: "LiseaMade Summer Resort",
+      });
+
+      const updated = getAdminHomePageSettings();
+      expect(updated.heroTitle).toBe("LiseaMade Summer Resort");
+
+      resetAdminHomePageSettings();
+      const reset = getAdminHomePageSettings();
+      expect(reset.heroTitle).toBe("LiseaMade");
     });
   });
 });
