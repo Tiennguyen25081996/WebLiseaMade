@@ -10,6 +10,10 @@ import {
   GOOGLE_APPS_SCRIPT_TEMPLATE,
   extractGoogleDriveFileId,
 } from "@/lib/media-api";
+import {
+  getProductsUsingImage,
+  removeImageUrlFromProducts,
+} from "@/lib/admin-store";
 import { Button } from "@/components/ui/Button";
 import {
   UploadIcon,
@@ -195,7 +199,15 @@ export function CloudflareImageUploader({
       if (ok) {
         setImages((prev) => prev.filter((img) => img.id !== deleteTarget.id));
         setSelectedUrls((prev) => prev.filter((u) => u !== deleteTarget.url));
-        showToast(`Đã xóa ảnh "${deleteTarget.filename}"!`);
+
+        // Tự động gỡ ảnh khỏi các sản phẩm đang gắn link ảnh này
+        const { affectedCount } = removeImageUrlFromProducts(deleteTarget.url);
+
+        showToast(
+          affectedCount > 0
+            ? `Đã xóa ảnh và gỡ khỏi ${affectedCount} sản phẩm liên quan!`
+            : `Đã xóa ảnh "${deleteTarget.filename}"!`
+        );
       } else {
         showToast("Xóa ảnh không thành công, vui lòng thử lại.");
       }
@@ -212,13 +224,25 @@ export function CloudflareImageUploader({
     try {
       const targets = images.filter((img) => selectedUrls.includes(img.url));
       let successCount = 0;
+      let totalAffected = 0;
+
       for (const img of targets) {
         const ok = await deleteMediaImage(img.id);
-        if (ok) successCount++;
+        if (ok) {
+          successCount++;
+          const { affectedCount } = removeImageUrlFromProducts(img.url);
+          totalAffected += affectedCount;
+        }
       }
+
       setImages((prev) => prev.filter((img) => !selectedUrls.includes(img.url)));
       setSelectedUrls([]);
-      showToast(`Đã xóa ${successCount} ảnh khỏi Cloudflare!`);
+
+      showToast(
+        totalAffected > 0
+          ? `Đã xóa ${successCount} ảnh và gỡ khỏi ${totalAffected} sản phẩm liên quan!`
+          : `Đã xóa ${successCount} ảnh khỏi Cloudflare!`
+      );
     } catch {
       showToast("Lỗi khi xóa hàng loạt ảnh.");
     } finally {
@@ -785,34 +809,51 @@ export function CloudflareImageUploader({
       )}
 
       {/* Delete Confirmation Modal (Đơn lẻ) */}
-      {deleteTarget && (
-        <div className="fixed inset-0 z-90 flex items-center justify-center bg-ink-900/60 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-sm rounded-hair bg-sand-50 p-6 shadow-2xl border border-sand-300 animate-reveal-up">
-            <h3 className="font-display text-base text-ink-900">Xác nhận xóa ảnh?</h3>
-            <p className="mt-2 text-xs text-ink-600">
-              Bạn có chắc chắn muốn xóa ảnh{" "}
-              <strong className="text-ink-900 font-semibold">{deleteTarget.filename}</strong> trên Cloudflare? Thao tác này không thể hoàn tác.
-            </p>
+      {deleteTarget && (() => {
+        const usingProducts = getProductsUsingImage(deleteTarget.url);
+        return (
+          <div className="fixed inset-0 z-90 flex items-center justify-center bg-ink-900/60 p-4 backdrop-blur-xs">
+            <div className="w-full max-w-sm rounded-hair bg-sand-50 p-6 shadow-2xl border border-sand-300 animate-reveal-up">
+              <h3 className="font-display text-base text-ink-900">Xác nhận xóa ảnh?</h3>
+              <p className="mt-2 text-xs text-ink-600">
+                Bạn có chắc chắn muốn xóa ảnh{" "}
+                <strong className="text-ink-900 font-semibold">{deleteTarget.filename}</strong> trên Cloudflare? Thao tác này không thể hoàn tác.
+              </p>
 
-            <div className="mt-6 flex justify-end gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setDeleteTarget(null)}
-              >
-                Hủy
-              </Button>
-              <Button
-                variant="danger"
-                size="sm"
-                onClick={handleDelete}
-              >
-                Xóa ngay
-              </Button>
+              {usingProducts.length > 0 && (
+                <div className="mt-3 rounded-hair bg-amber-50 border border-amber-200 p-2.5 text-2xs text-amber-900 space-y-1">
+                  <span className="font-semibold block">
+                    ⚠️ Ảnh đang được dùng bởi {usingProducts.length} sản phẩm:
+                  </span>
+                  <span className="block truncate font-medium">
+                    {usingProducts.map((p) => p.name).join(", ")}
+                  </span>
+                  <span className="block text-amber-700">
+                    Xóa ảnh này sẽ tự động gỡ ảnh khỏi các sản phẩm trên.
+                  </span>
+                </div>
+              )}
+
+              <div className="mt-6 flex justify-end gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setDeleteTarget(null)}
+                >
+                  Hủy
+                </Button>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={handleDelete}
+                >
+                  Xóa ngay
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Batch Delete Confirmation Modal (Hàng loạt) */}
       {showBatchDeleteModal && (

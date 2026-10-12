@@ -247,4 +247,20 @@ describe("AdminBoardPage", () => {
     expect(screen.getByPlaceholderText(/Tìm đơn theo mã, tên khách/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Làm mới đơn/ })).toBeInTheDocument();
   });
+
+  it("chuyển sang tab Cài đặt Trang chủ và hiển thị giao diện cấu hình", () => {
+    loginAdmin("admin", "admin123", true);
+
+    render(
+      <MemoryRouter>
+        <AdminBoardPage />
+      </MemoryRouter>
+    );
+
+    const homeTabBtn = screen.getByRole("button", { name: /Cài đặt Trang chủ/ });
+    fireEvent.click(homeTabBtn);
+
+    expect(screen.getByText("Cài đặt hình ảnh & nội dung Trang chủ")).toBeInTheDocument();
+    expect(screen.getByText(/1\. Banner Hero/)).toBeInTheDocument();
+  });
 });
