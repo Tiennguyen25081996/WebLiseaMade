@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/Button";
 import { SITE } from "@/data/site";
-import { PRODUCTS } from "@/data/products";
+import { useAdminStore } from "@/lib/admin-store";
 import { getCategoryName } from "@/data/categories";
 import { formatCompact, formatVnd } from "@/lib/format";
 import { ProductCard } from "@/components/product/ProductCard";
@@ -14,7 +14,8 @@ import { ProductImage } from "@/components/product/ProductImage";
  * Tên/giá mẫu giữ nguyên + banner "Catalog mẫu".
  */
 export default function HomePage() {
-  const featured = PRODUCTS.slice(0, 3);
+  const { products } = useAdminStore();
+  const featured = products.slice(0, 3);
   const lifestyle = [
     { src: "/figma-images/lifestyle-1.png", caption: "Đi biển · Voan hoa" },
     { src: "/figma-images/lifestyle-2.png", caption: "Dạo phố · Linen mát" },
@@ -72,15 +73,17 @@ export default function HomePage() {
           {featured.map((product) => {
             /** Featured dùng hero images thật từ Figma desktop design: mỗi category seed riêng. */
             const category = getCategoryName(product.category);
-            const seedMap: Record<string, [src: string]> = {
+            const seedMap: Record<string, string[]> = {
               "Áo": ["/shop-tiktok/feat1.jpg"],
               "Váy & Đầm": ["/shop-tiktok/cat2.jpg"],
               "Set đồ": ["/shop-tiktok/cat3.jpg"],
               "Phụ kiện": ["/shop-tiktok/cat4.jpg"],
             };
-            const heroSeed = product.images[0] ?? (seedMap[category] ?? ["/shop-tiktok/feat2.jpg"])[0];
+            const productWithImages = product.images.length > 0
+              ? product
+              : { ...product, images: seedMap[category] ?? ["/shop-tiktok/feat2.jpg"] };
 
-            return <ProductCard key={product.id} product={{ ...product, images: [heroSeed] }} />;
+            return <ProductCard key={product.id} product={productWithImages} />;
           })}
         </div>
         <div className="mt-6">
@@ -196,7 +199,7 @@ export default function HomePage() {
           Giá tham khảo: từ {formatVnd(165000)} đến {formatVnd(720000)}
         </h2>
         <ul className="mt-3 flex flex-col gap-1 text-sm text-ink-500">
-          {PRODUCTS.slice(0, 6).map((p) => (
+          {products.slice(0, 6).map((p) => (
             <li key={p.id}>
               <Link
                 to={`/san-pham/${p.id}`}

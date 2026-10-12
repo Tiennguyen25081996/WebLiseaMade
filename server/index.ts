@@ -27,6 +27,7 @@ export interface Env {
   DB?: D1Database;
   prod_d1_tutorial?: D1Database;
   ASSETS?: Fetcher;
+  ALLOWED_ORIGIN?: string;
 }
 
 export interface OrderItemInput {
@@ -128,6 +129,16 @@ export async function initDb(db: D1Database): Promise<void> {
         created_at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_customer_events_type_created ON customer_events(event_type, created_at);
+      CREATE TABLE IF NOT EXISTS media_files (
+        id TEXT PRIMARY KEY,
+        filename TEXT NOT NULL,
+        mime_type TEXT NOT NULL,
+        size INTEGER NOT NULL CHECK (size >= 0),
+        url TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        data TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_media_files_created ON media_files(created_at DESC);
     `);
     dbInitialized = true;
   } catch (err) {
@@ -153,45 +164,112 @@ async function hashIp(ip: string): Promise<string> {
   return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-function jsonResponse(data: unknown, status = 200): Response {
+function securityHeaders(origin = "*"): Record<string, string> {
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Cross-Origin-Resource-Policy": "same-origin",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+  };
+}
+
+function getAllowedOrigin(request: Request, env: Env): string {
+  const configured = env.ALLOWED_ORIGIN?.trim();
+  if (configured) return configured;
+  const origin = request.headers.get("Origin");
+  if (!origin) return "*";
+  const requestOrigin = new URL(request.url).origin;
+  return origin === requestOrigin ? origin : requestOrigin;
+}
+
+function jsonResponse(data: unknown, status = 200, origin = "*"): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
+      ...securityHeaders(origin),
     },
   });
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const len = bytes.byteLength;
+  const chunkSize = 8192;
+  for (let i = 0; i < len; i += chunkSize) {
+    const chunk = bytes.subarray(i, Math.min(i + chunkSize, len));
+    binary += String.fromCharCode.apply(null, chunk as unknown as number[]);
+  }
+  return btoa(binary);
+}
+
+function base64ToUint8Array(base64: string): Uint8Array {
+  const clean = base64.replace(/^data:[^;]+;base64,/, "");
+  const binaryString = atob(clean);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+}
+
+const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const ALLOWED_IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif"]);
+
+function hasAllowedImageExtension(filename: string): boolean {
+  const lower = filename.toLowerCase();
+  const extension = lower.match(/\.[^.]+$/)?.[0] ?? "";
+  return ALLOWED_IMAGE_EXTENSIONS.has(extension);
+}
+
+function hasValidImageSignature(bytes: Uint8Array, mimeType: string): boolean {
+  if (mimeType === "image/png") {
+    return bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
+  }
+  if (mimeType === "image/jpeg") {
+    return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  }
+  if (mimeType === "image/gif") {
+    return bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46;
+  }
+  if (mimeType === "image/webp") {
+    return bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50;
+  }
+  return false;
 }
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    const allowedOrigin = getAllowedOrigin(request, env);
 
     // Xử lý CORS preflight
     if (request.method === "OPTIONS") {
       return new Response(null, {
         status: 204,
-        headers: {
-          "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type",
-        },
+        headers: securityHeaders(allowedOrigin),
       });
     }
 
     // Các routes API
     if (url.pathname.startsWith("/api/")) {
       const db = getDb(env);
+      const apiJson = (data: unknown, status = 200) => jsonResponse(data, status, allowedOrigin);
+
       if (!db) {
-        return jsonResponse(
-          { success: false, error: "Database binding not configured (missing env.DB / env.prod_d1_tutorial)" },
+        return apiJson(
+          { success: false, error: "Database binding not configured" },
           500,
         );
       }
 
       try {
+
         // Đảm bảo schema đã được khởi tạo
         await initDb(db);
 
@@ -199,13 +277,13 @@ export default {
         if (url.pathname === "/api/orders" && request.method === "POST") {
           const rawBody = await request.json().catch(() => null);
           if (!rawBody) {
-            return jsonResponse({ success: false, error: "Dữ liệu JSON không hợp lệ" }, 400);
+            return apiJson({ success: false, error: "Dữ liệu JSON không hợp lệ" }, 400);
           }
 
           // Kiểm tra và sanitize toàn bộ input bằng module validation
           const validation = validateOrderPayload(rawBody);
           if (!validation.valid || !validation.sanitized) {
-            return jsonResponse(
+            return apiJson(
               {
                 success: false,
                 error: "Dữ liệu đầu vào không hợp lệ",
@@ -286,7 +364,7 @@ export default {
           // Thực thi batch D1 (atomic transaction)
           await db.batch(statements);
 
-          return jsonResponse({
+          return apiJson({
             success: true,
             order: {
               id: orderId,
@@ -302,7 +380,7 @@ export default {
         if (url.pathname.startsWith("/api/orders/") && request.method === "GET") {
           const code = decodeURIComponent(url.pathname.replace("/api/orders/", "")).trim();
           if (!isValidOrderCode(code)) {
-            return jsonResponse({ success: false, error: "Định dạng mã đơn hàng không hợp lệ (LM-XXXXXX)" }, 400);
+            return apiJson({ success: false, error: "Định dạng mã đơn hàng không hợp lệ (LM-XXXXXX)" }, 400);
           }
 
           const order = await db
@@ -311,7 +389,7 @@ export default {
             .first();
 
           if (!order) {
-            return jsonResponse({ success: false, error: "Không tìm thấy đơn hàng" }, 404);
+            return apiJson({ success: false, error: "Không tìm thấy đơn hàng" }, 404);
           }
 
           // S1: query order_items bằng order.id thay vì order.code
@@ -320,7 +398,7 @@ export default {
             .bind(order.id as string)
             .all();
 
-          return jsonResponse({
+          return apiJson({
             success: true,
             order: {
               ...order,
@@ -333,7 +411,7 @@ export default {
         if (url.pathname === "/api/events" && request.method === "POST") {
           const body = (await request.json().catch(() => null)) as Partial<CustomerEventInput> | null;
           if (!body || !body.eventType) {
-            return jsonResponse({ success: false, error: "Thiếu trường eventType" }, 400);
+            return apiJson({ success: false, error: "Thiếu trường eventType" }, 400);
           }
 
           const userAgent = body.userAgent || request.headers.get("User-Agent") || "";
@@ -356,13 +434,144 @@ export default {
             .bind(body.eventType, payloadStr, userAgent, ipHash, createdAt)
             .run();
 
-          return jsonResponse({ success: true, loggedAt: createdAt }, 201);
+          return apiJson({ success: true, loggedAt: createdAt }, 201);
         }
 
-        return jsonResponse({ success: false, error: "API route not found" }, 404);
+        // POST /api/upload - Tải ảnh lên Cloudflare / D1
+        if (url.pathname === "/api/upload" && request.method === "POST") {
+          const contentType = request.headers.get("Content-Type") || "";
+          let filename = "image.png";
+          let mimeType = "image/png";
+          let size = 0;
+          let base64Data = "";
+
+          if (contentType.includes("multipart/form-data")) {
+            const formData = await request.formData().catch(() => null);
+            if (!formData) {
+              return apiJson({ success: false, error: "Không đọc được formData" }, 400);
+            }
+            const file = formData.get("file");
+            if (!file || typeof file === "string") {
+              return apiJson({ success: false, error: "Thiếu file ảnh trong formData" }, 400);
+            }
+            const f = file as File;
+            filename = f.name || "uploaded.png";
+            mimeType = f.type || "image/png";
+            size = f.size;
+            const buffer = await f.arrayBuffer();
+            base64Data = arrayBufferToBase64(buffer);
+          } else {
+            // JSON fallback: { file: base64, filename: string, mimeType: string }
+            const json = (await request.json().catch(() => null)) as {
+              file?: string;
+              filename?: string;
+              mimeType?: string;
+            } | null;
+
+            if (!json || !json.file) {
+              return apiJson({ success: false, error: "Thiếu dữ liệu file" }, 400);
+            }
+
+            filename = json.filename || "uploaded.png";
+            mimeType = json.mimeType || "image/png";
+            base64Data = json.file.replace(/^data:[^;]+;base64,/, "");
+            size = Math.round((base64Data.length * 3) / 4);
+          }
+
+          if (!ALLOWED_IMAGE_TYPES.has(mimeType)) {
+            return apiJson({ success: false, error: "Định dạng ảnh không được hỗ trợ" }, 400);
+          }
+
+          if (!hasAllowedImageExtension(filename)) {
+            return apiJson({ success: false, error: "Phần mở rộng file ảnh không hợp lệ" }, 400);
+          }
+
+          // Giới hạn 10MB
+          if (size > 10 * 1024 * 1024) {
+            return apiJson({ success: false, error: "Dung lượng ảnh vượt quá giới hạn 10MB" }, 400);
+          }
+
+          const bytes = base64ToUint8Array(base64Data);
+          if (!hasValidImageSignature(bytes, mimeType)) {
+            return apiJson({ success: false, error: "Nội dung file không khớp định dạng ảnh" }, 400);
+          }
+
+          const imageId = `img_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+          const createdAt = new Date().toISOString();
+          const publicUrl = `/api/images/${imageId}`;
+
+          await db
+            .prepare(
+              `INSERT INTO media_files (id, filename, mime_type, size, url, created_at, data)
+               VALUES (?, ?, ?, ?, ?, ?, ?)`
+            )
+            .bind(imageId, filename, mimeType, size, publicUrl, createdAt, base64Data)
+            .run();
+
+          return apiJson(
+            {
+              success: true,
+              image: {
+                id: imageId,
+                filename,
+                mimeType,
+                size,
+                url: publicUrl,
+                createdAt,
+              },
+            },
+            201,
+          );
+        }
+
+        // GET /api/images - Danh sách ảnh đã upload
+        if (url.pathname === "/api/images" && request.method === "GET") {
+          const result = await db
+            .prepare(
+              "SELECT id, filename, mime_type, size, url, created_at FROM media_files ORDER BY created_at DESC LIMIT 100"
+            )
+            .all();
+
+          return apiJson({
+            success: true,
+            images: result.results || [],
+          });
+        }
+
+        // GET /api/images/:id - Trả về dữ liệu ảnh binary
+        if (url.pathname.startsWith("/api/images/") && request.method === "GET") {
+          const imageId = decodeURIComponent(url.pathname.replace("/api/images/", "")).trim();
+          const record = await db
+            .prepare("SELECT mime_type, data FROM media_files WHERE id = ?")
+            .bind(imageId)
+            .first<{ mime_type: string; data: string }>();
+
+          if (!record || !record.data) {
+            return apiJson({ success: false, error: "Không tìm thấy hình ảnh" }, 404);
+          }
+
+          const binary = base64ToUint8Array(record.data);
+          return new Response(binary as unknown as BodyInit, {
+            status: 200,
+            headers: {
+              "Content-Type": record.mime_type || "image/png",
+              "Cache-Control": "public, max-age=31536000, immutable",
+              ...securityHeaders(allowedOrigin),
+            },
+          });
+        }
+
+        // DELETE /api/images/:id - Xóa ảnh
+        if (url.pathname.startsWith("/api/images/") && request.method === "DELETE") {
+          const imageId = decodeURIComponent(url.pathname.replace("/api/images/", "")).trim();
+          await db.prepare("DELETE FROM media_files WHERE id = ?").bind(imageId).run();
+          return apiJson({ success: true, id: imageId });
+        }
+
+        return apiJson({ success: false, error: "API route not found" }, 404);
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err);
-        return jsonResponse({ success: false, error: message }, 500);
+        console.error("API error", err);
+        return apiJson({ success: false, error: "Đã xảy ra lỗi hệ thống. Vui lòng thử lại sau." }, 500);
       }
     }
 

@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useMatch, useNavigate, Link } from "react-router-dom";
 import { useCart } from "@/context/cart-context";
-import { PRODUCTS } from "@/data/products";
+import { useAdminStore } from "@/lib/admin-store";
 import { getCategoryName } from "@/data/categories";
 import { getProductById, getRelatedProducts } from "@/lib/catalog";
 import { Price } from "@/components/ui/Price";
@@ -19,10 +19,12 @@ export default function ProductDetailPage() {
   const match = useMatch("/san-pham/:slug");
   const navigate = useNavigate();
   const slug = match?.params.slug ?? "";
-  const product = getProductById(PRODUCTS, slug);
+  const { products } = useAdminStore();
+  const product = getProductById(products, slug);
   const cart = useCart();
 
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
   if (!product) {
     return (
@@ -39,9 +41,10 @@ export default function ProductDetailPage() {
     return product.variants.find((v) => v.inStock)?.id ?? product.variants[0]?.id ?? null;
   }, [product.variants]);
 
-  // Reset scroll lên đầu trang khi mở hoặc đổi sản phẩm
+  // Reset scroll và ảnh active lên đầu trang khi mở hoặc đổi sản phẩm
   useEffect(() => {
     window.scrollTo(0, 0);
+    setSelectedImageIndex(0);
   }, [slug]);
 
   // Track customer event khi xem chi tiết sản phẩm
@@ -68,9 +71,9 @@ export default function ProductDetailPage() {
     return cart.lines.find((line) => line.productId === product.id && line.variantId === selected.id);
   }, [cart.lines, product.id, selected.id]);
 
-  const related = useMemo(() => getRelatedProducts(PRODUCTS, product), [product]);
+  const related = useMemo(() => getRelatedProducts(products, product), [products, product]);
 
-  const productImage = product.images[0] ?? "/placeholder-product.jpg";
+  const activeProductImage = product.images[selectedImageIndex] ?? product.images[0] ?? "";
 
   const discountPercent = product.compareAtPrice 
     ? Math.round(((product.compareAtPrice - product.price) / product.compareAtPrice) * 100)
@@ -102,15 +105,40 @@ export default function ProductDetailPage() {
 
       <div className="grid lg:grid-cols-2 gap-12">
         {/* Gallery - Left: 568x760 aspect */}
-        <div className="relative aspect-[568/760] rounded-hair overflow-hidden bg-sand-200">
-          <ProductImage
-            src={productImage}
-            alt={product.name}
-            seed={product.id}
-            priority
-            className="h-full w-full object-cover"
-            showPlaceholderNote={false}
-          />
+        <div className="flex flex-col gap-3">
+          <div className="relative aspect-[568/760] rounded-hair overflow-hidden bg-sand-200">
+            <ProductImage
+              src={activeProductImage}
+              alt={product.name}
+              seed={product.id}
+              priority
+              className="h-full w-full object-cover"
+              showPlaceholderNote={false}
+            />
+          </div>
+          {product.images.length > 1 && (
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {product.images.map((imgUrl, idx) => (
+                <button
+                  key={`${imgUrl}-${idx}`}
+                  type="button"
+                  onClick={() => setSelectedImageIndex(idx)}
+                  className={`h-16 w-16 shrink-0 overflow-hidden rounded-hair border-2 transition-all ${
+                    idx === selectedImageIndex
+                      ? "border-ink-900 shadow-2xs"
+                      : "border-sand-300 opacity-70 hover:opacity-100"
+                  }`}
+                  aria-label={`Xem ảnh ${idx + 1}`}
+                >
+                  <img
+                    src={imgUrl}
+                    alt={`${product.name} thumbnail ${idx + 1}`}
+                    className="h-full w-full object-cover"
+                  />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Info - Right: 500px width */}

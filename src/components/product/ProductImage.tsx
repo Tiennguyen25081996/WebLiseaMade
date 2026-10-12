@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface ProductImageProps {
   /** URL ảnh thật. Rỗng/không có -> vẽ placeholder có ghi chú rõ ràng. */
@@ -46,6 +46,11 @@ export function ProductImage({
   priority = false,
 }: ProductImageProps) {
   const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [src]);
+
   const hasRealImage = Boolean(src) && !failed;
 
   if (hasRealImage) {

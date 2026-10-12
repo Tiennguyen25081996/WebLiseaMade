@@ -3,7 +3,7 @@
  * Khớp chuẩn Figma (109:403 Header + 109:405 Footer) với motion tokens & couture micro-interactions.
  */
 import { useState, useEffect } from "react";
-import { Link, NavLink, Outlet } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { SITE } from "@/data/site";
 import { useCart } from "@/context/cart-context";
 
@@ -180,16 +180,24 @@ function MobileFooter() {
 }
 
 function LayoutMobileWrapper() {
+  const location = useLocation();
+  const isAdmin = location.pathname.startsWith("/admin");
+
   return (
     <section className="mobile-layout min-h-[100dvh] flex flex-col bg-sand-50 w-full" aria-label="Nội dung di động">
       <MobileHeader />
       
       {/* Mobile content container — Max width constrained for editorial mobile */}
-      <main id="nout-content-mobile" className="flex-1 w-full max-w-md mx-auto px-3 pb-[calc(5rem+env(safe-area-inset-bottom,0px))] md:hidden">
+      <main
+        id="nout-content-mobile"
+        className={`flex-1 w-full max-w-md mx-auto px-3 ${
+          isAdmin ? "pb-8" : "pb-[calc(5rem+env(safe-area-inset-bottom,0px))]"
+        } md:hidden`}
+      >
         <Outlet />
       </main>
 
-      <MobileFooter />
+      {!isAdmin && <MobileFooter />}
       
       {/* Accessibility: skip navigation link */}
       <a href="#nout-content-mobile" 

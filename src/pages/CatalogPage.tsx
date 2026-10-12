@@ -1,4 +1,5 @@
-import { CATALOG_IS_PLACEHOLDER, PRODUCTS } from "@/data/products";
+import { CATALOG_IS_PLACEHOLDER } from "@/data/products";
+import { useAdminStore } from "@/lib/admin-store";
 import { priceBounds, selectProducts } from "@/lib/catalog";
 import { useMemo } from "react";
 import { formatVnd } from "@/lib/format";
@@ -13,12 +14,13 @@ import { AutoLayoutFilterBar } from "@/components/catalog/AutoLayoutFilterBar";
  */
 export default function CatalogPage() {
   const { query } = useCatalogQuery();
+  const { products } = useAdminStore();
   const { results, bounds } = useMemo(
     () => {
-      const selected = selectProducts(PRODUCTS, query);
+      const selected = selectProducts(products, query);
       return { results: selected, bounds: priceBounds(selected) };
     },
-    [query],
+    [products, query],
   );
 
   return (

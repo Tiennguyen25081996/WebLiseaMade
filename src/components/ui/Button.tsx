@@ -10,6 +10,7 @@ interface ButtonProps {
   disabled?: boolean;
   ariaDisabled?: boolean;
   className?: string;
+  type?: "button" | "submit" | "reset";
 }
 
 const BASE =
@@ -39,6 +40,7 @@ export function Button({
   disabled,
   ariaDisabled,
   className = "",
+  type = "button",
 }: ButtonProps) {
   const classes = `${BASE} ${VARIANTS[variant]} ${SIZES[size]} ${className}`;
 
@@ -52,7 +54,7 @@ export function Button({
 
   return (
     <button
-      type="button"
+      type={type}
       disabled={disabled}
       aria-disabled={ariaDisabled ?? disabled}
       onClick={onClick}

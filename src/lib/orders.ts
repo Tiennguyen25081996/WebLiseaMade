@@ -3,6 +3,24 @@ import type { CartLine, CheckoutInfo, PlacedOrder } from "@/types";
 const PAYMENT_METHODS = new Set<string>(["cod", "bank-transfer", "e-wallet"]);
 
 export const ORDERS_STORAGE_KEY = "liseamade.orders.v1";
+export const ORDERS_UPDATED_EVENT = "liseamade:orders-updated";
+
+export const ORDER_STATUS_LABELS: Record<
+  NonNullable<PlacedOrder["status"]>,
+  { label: string; color: string }
+> = {
+  pending: { label: "Chờ xác nhận", color: "bg-amber-100 text-amber-800 border-amber-300" },
+  processing: { label: "Đang xử lý", color: "bg-blue-100 text-blue-800 border-blue-300" },
+  shipping: { label: "Đang giao hàng", color: "bg-purple-100 text-purple-800 border-purple-300" },
+  delivered: { label: "Đã hoàn thành", color: "bg-green-100 text-green-800 border-green-300" },
+  cancelled: { label: "Đã hủy đơn", color: "bg-coral-100 text-coral-800 border-coral-300" },
+};
+
+function dispatchOrdersUpdate() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(ORDERS_UPDATED_EVENT));
+  }
+}
 
 /** Mã đơn dạng "LM-XXXXXX" — bảng chữ cái bỏ ký tự dễ nhầm (0/O, 1/I). */
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -62,6 +80,7 @@ export function saveOrder(
   try {
     const all = [order, ...readOrders(storage)].slice(0, MAX_SAVED_ORDERS);
     storage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(all));
+    dispatchOrdersUpdate();
     return true;
   } catch {
     return false;
@@ -73,6 +92,7 @@ export function clearOrders(storage: Storage | undefined = safeStorage()): boole
   if (!storage) return false;
   try {
     storage.removeItem(ORDERS_STORAGE_KEY);
+    dispatchOrdersUpdate();
     return true;
   } catch {
     return false;
@@ -85,6 +105,26 @@ export function findOrderByCode(
 ): PlacedOrder | undefined {
   const target = code.trim().toUpperCase();
   return readOrders(storage).find((o) => o.code.toUpperCase() === target);
+}
+
+export function updateOrderStatus(
+  code: string,
+  newStatus: PlacedOrder["status"],
+  storage: Storage | undefined = safeStorage(),
+): boolean {
+  if (!storage) return false;
+  try {
+    const target = code.trim().toUpperCase();
+    const orders = readOrders(storage);
+    const index = orders.findIndex((o) => o.code.toUpperCase() === target);
+    if (index === -1) return false;
+    orders[index] = { ...orders[index], status: newStatus };
+    storage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(orders));
+    dispatchOrdersUpdate();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** storage có thể bị chặn (Safari private mode) -> luôn truy cập qua try/catch. */
