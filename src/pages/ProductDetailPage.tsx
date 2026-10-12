@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useMatch, useNavigate, Link } from "react-router-dom";
 import { useCart } from "@/context/cart-context";
-import { PRODUCTS } from "@/data/products";
+import { useAdminStore } from "@/lib/admin-store";
 import { getCategoryName } from "@/data/categories";
 import { getProductById, getRelatedProducts } from "@/lib/catalog";
 import { Price } from "@/components/ui/Price";
@@ -19,7 +19,8 @@ export default function ProductDetailPage() {
   const match = useMatch("/san-pham/:slug");
   const navigate = useNavigate();
   const slug = match?.params.slug ?? "";
-  const product = getProductById(PRODUCTS, slug);
+  const { products } = useAdminStore();
+  const product = getProductById(products, slug);
   const cart = useCart();
 
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
@@ -68,7 +69,7 @@ export default function ProductDetailPage() {
     return cart.lines.find((line) => line.productId === product.id && line.variantId === selected.id);
   }, [cart.lines, product.id, selected.id]);
 
-  const related = useMemo(() => getRelatedProducts(PRODUCTS, product), [product]);
+  const related = useMemo(() => getRelatedProducts(products, product), [products, product]);
 
   const productImage = product.images[0] ?? "/placeholder-product.jpg";
 

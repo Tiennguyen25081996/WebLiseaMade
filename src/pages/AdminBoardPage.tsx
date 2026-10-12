@@ -787,8 +787,14 @@ export default function AdminBoardPage() {
        * MODAL 1: THÊM / SỬA SẢN PHẨM
        * ========================================================================= */}
       {isProductModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/60 p-4 backdrop-blur-xs">
-          <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-hair bg-sand-50 p-6 shadow-2xl border border-sand-300 animate-reveal-up">
+        <div
+          className="fixed inset-0 z-70 flex items-center justify-center bg-ink-900/60 p-4 backdrop-blur-xs"
+          onClick={() => setIsProductModalOpen(false)}
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-hair bg-sand-50 p-6 shadow-2xl border border-sand-300 animate-reveal-up"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between border-b border-sand-200 pb-3">
               <h2 className="font-display text-lg text-ink-900">
                 {editingProduct ? "Chỉnh sửa sản phẩm" : "Thêm sản phẩm mới"}
@@ -996,7 +1002,7 @@ export default function AdminBoardPage() {
                 >
                   Hủy
                 </Button>
-                <Button variant="primary" size="sm">
+                <Button variant="primary" size="sm" type="submit">
                   {editingProduct ? "Lưu thay đổi" : "Thêm sản phẩm"}
                 </Button>
               </div>
@@ -1009,8 +1015,14 @@ export default function AdminBoardPage() {
        * MODAL CHỌN ẢNH CLOUDFLARE CHO SẢN PHẨM
        * ========================================================================= */}
       {isMediaPickerOpen && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center bg-ink-900/60 p-4 backdrop-blur-xs">
-          <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-hair bg-sand-50 p-6 shadow-2xl border border-sand-300 animate-reveal-up">
+        <div
+          className="fixed inset-0 z-80 flex items-center justify-center bg-ink-900/60 p-4 backdrop-blur-xs"
+          onClick={() => setIsMediaPickerOpen(false)}
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-hair bg-sand-50 p-6 shadow-2xl border border-sand-300 animate-reveal-up"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between border-b border-sand-200 pb-3 mb-4">
               <div>
                 <h2 className="font-display text-lg text-ink-900">
@@ -1047,8 +1059,14 @@ export default function AdminBoardPage() {
        * MODAL 2: THÊM / SỬA LOẠI SẢN PHẨM (CATEGORIES)
        * ========================================================================= */}
       {isCategoryModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/60 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-md rounded-hair bg-sand-50 p-6 shadow-2xl border border-sand-300 animate-reveal-up">
+        <div
+          className="fixed inset-0 z-70 flex items-center justify-center bg-ink-900/60 p-4 backdrop-blur-xs"
+          onClick={() => setIsCategoryModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-hair bg-sand-50 p-6 shadow-2xl border border-sand-300 animate-reveal-up"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between border-b border-sand-200 pb-3">
               <h2 className="font-display text-lg text-ink-900">
                 {editingCategory ? "Chỉnh sửa loại sản phẩm" : "Thêm loại sản phẩm mới"}
@@ -1107,7 +1125,7 @@ export default function AdminBoardPage() {
                 >
                   Hủy
                 </Button>
-                <Button variant="primary" size="sm">
+                <Button variant="primary" size="sm" type="submit">
                   {editingCategory ? "Lưu thay đổi" : "Tạo loại sản phẩm"}
                 </Button>
               </div>
@@ -1120,8 +1138,14 @@ export default function AdminBoardPage() {
        * MODAL 3: THÊM / SỬA EVENT GIẢM GIÁ (DISCOUNT)
        * ========================================================================= */}
       {isDiscountModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/60 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-lg rounded-hair bg-sand-50 p-6 shadow-2xl border border-sand-300 animate-reveal-up">
+        <div
+          className="fixed inset-0 z-70 flex items-center justify-center bg-ink-900/60 p-4 backdrop-blur-xs"
+          onClick={() => setIsDiscountModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-lg rounded-hair bg-sand-50 p-6 shadow-2xl border border-sand-300 animate-reveal-up"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between border-b border-sand-200 pb-3">
               <h2 className="font-display text-lg text-ink-900">
                 {editingDiscount ? "Chỉnh sửa sự kiện giảm giá" : "Thêm sự kiện giảm giá mới"}
@@ -1271,7 +1295,7 @@ export default function AdminBoardPage() {
                 >
                   Hủy
                 </Button>
-                <Button variant="primary" size="sm">
+                <Button variant="primary" size="sm" type="submit">
                   {editingDiscount ? "Lưu thay đổi" : "Tạo sự kiện"}
                 </Button>
               </div>
@@ -1284,8 +1308,14 @@ export default function AdminBoardPage() {
        * MODAL XÁC NHẬN XÓA (CONFIRM DELETE)
        * ========================================================================= */}
       {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/60 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-sm rounded-hair bg-sand-50 p-6 shadow-2xl border border-sand-300 animate-reveal-up">
+        <div
+          className="fixed inset-0 z-80 flex items-center justify-center bg-ink-900/60 p-4 backdrop-blur-xs"
+          onClick={() => setDeleteTarget(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-hair bg-sand-50 p-6 shadow-2xl border border-sand-300 animate-reveal-up"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3 className="font-display text-base text-ink-900">Xác nhận xóa?</h3>
             <p className="mt-2 text-xs text-ink-600">
               Bạn có chắc chắn muốn xóa {deleteTarget.type === "product" ? "sản phẩm" : deleteTarget.type === "category" ? "loại sản phẩm" : "sự kiện giảm giá"}{" "}

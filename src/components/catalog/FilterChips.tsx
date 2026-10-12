@@ -1,7 +1,6 @@
 import { Link } from "react-router-dom";
 import type { CatalogQuery, CategoryId } from "@/types";
-import { CATEGORIES } from "@/data/categories";
-import { PRODUCTS } from "@/data/products";
+import { useAdminStore } from "@/lib/admin-store";
 import { countByCategory, toSearchParams } from "@/lib/catalog";
 
 interface FilterChipsProps {
@@ -13,6 +12,7 @@ interface FilterChipsProps {
 
 export function FilterChips({ query, isFiltered = false, onReset, className = "" }: FilterChipsProps) {
   const isAll = query.category === "all";
+  const { products, categories } = useAdminStore();
 
   return (
     <div
@@ -41,12 +41,12 @@ export function FilterChips({ query, isFiltered = false, onReset, className = ""
             : "bg-sand-50/80 text-ink-600 border-sand-200/90 hover:border-sand-300 hover:text-ink-900"
         }`}
       >
-        Tất cả ({PRODUCTS.length})
+        Tất cả ({products.length})
       </Link>
 
       {/* Chips từng danh mục */}
-      {CATEGORIES.map((category) => {
-        const count = countByCategory(PRODUCTS, category.id);
+      {categories.map((category) => {
+        const count = countByCategory(products, category.id);
         const isActive = category.id === query.category;
 
         return (
