@@ -7,6 +7,7 @@
 import { Route, Routes } from "react-router-dom";
 import { Layout } from "./components/layout/Layout";
 import { ScrollToTop } from "./components/layout/ScrollToTop";
+import { AiChatbotWidget } from "./components/chat/AiChatbotWidget";
 
 // Page components are rendered inside Layout which handles responsive switch
 import HomePage from "./pages/HomePage";
@@ -25,6 +26,7 @@ export default function App() {
   return (
     <>
       <ScrollToTop />
+      <AiChatbotWidget />
       <Routes>
         {/* ALL routes wrapped in Layout for mobile/desktop switching */}
         <Route element={<Layout />}>
