@@ -90,4 +90,51 @@ describe("CloudflareImageUploader", () => {
 
     expect(screen.queryByRole("button", { name: /Thêm 2 ảnh vào sản phẩm/i })).not.toBeInTheDocument();
   });
+
+  it("chuyển sang tab nhập link Google Drive và import thành công", async () => {
+    vi.spyOn(mediaApi, "importGoogleDriveLinks").mockResolvedValue({
+      successful: [
+        {
+          id: "gdrive_1",
+          filename: "drive-1.jpg",
+          mimeType: "image/jpeg",
+          size: 0,
+          url: "https://lh3.googleusercontent.com/d/1XyZ123",
+          createdAt: "2026-10-12T00:00:00Z",
+        },
+      ],
+      failed: [],
+    });
+
+    render(<CloudflareImageUploader />);
+
+    const driveTab = screen.getByRole("button", { name: /Nhập link Google Drive/i });
+    fireEvent.click(driveTab);
+
+    expect(screen.getByText("Dán liên kết ảnh từ Google Drive")).toBeInTheDocument();
+
+    const textarea = screen.getByPlaceholderText(/drive\.google\.com/i);
+    fireEvent.change(textarea, {
+      target: { value: "https://drive.google.com/file/d/1XyZ123/view" },
+    });
+
+    const submitBtn = screen.getByRole("button", { name: "Chuyển đổi & Lưu vào D1" });
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(mediaApi.importGoogleDriveLinks).toHaveBeenCalledWith([
+        "https://drive.google.com/file/d/1XyZ123/view",
+      ]);
+    });
+  });
+
+  it("mở modal cấu hình Google Drive Webhook", () => {
+    render(<CloudflareImageUploader />);
+
+    const configBtn = screen.getByRole("button", { name: /Cấu hình Drive Webhook/i });
+    fireEvent.click(configBtn);
+
+    expect(screen.getByText("Cấu hình lưu ảnh lên Google Drive")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Lưu cấu hình" })).toBeInTheDocument();
+  });
 });

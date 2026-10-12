@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { normalizeGoogleDriveUrl } from "@/lib/media-api";
 
 interface ProductImageProps {
   /** URL ảnh thật. Rỗng/không có -> vẽ placeholder có ghi chú rõ ràng. */
@@ -51,12 +52,13 @@ export function ProductImage({
     setFailed(false);
   }, [src]);
 
-  const hasRealImage = Boolean(src) && !failed;
+  const normalizedSrc = src ? normalizeGoogleDriveUrl(src) : src;
+  const hasRealImage = Boolean(normalizedSrc) && !failed;
 
   if (hasRealImage) {
     return (
       <img
-        src={src}
+        src={normalizedSrc}
         alt={alt}
         loading={priority ? "eager" : "lazy"}
         decoding="async"

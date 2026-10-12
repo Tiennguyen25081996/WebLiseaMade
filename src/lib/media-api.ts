@@ -7,16 +7,111 @@ export interface MediaImage {
   createdAt: string;
 }
 
-const STORAGE_KEY_OFFLINE_IMAGES = "liseamade.admin.media.offline.v1";
+export const STORAGE_KEY_OFFLINE_IMAGES = "liseamade.admin.media.offline.v1";
+export const STORAGE_KEY_GDRIVE_WEBHOOK = "liseamade.admin.media.gdrive_webhook.v1";
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const ALLOWED_IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif"]);
+
+export const GOOGLE_APPS_SCRIPT_TEMPLATE = `// Google Apps Script (triển khai tại script.google.com -> Web App -> Anyone)
+function doPost(e) {
+  try {
+    var data = JSON.parse(e.postData.contents);
+    var base64 = (data.file || "").replace(/^data:[^;]+;base64,/, "");
+    var bytes = Utilities.base64Decode(base64);
+    var blob = Utilities.newBlob(bytes, data.mimeType || "image/jpeg", data.filename || "image.jpg");
+    
+    var folder = data.folderId ? DriveApp.getFolderById(data.folderId) : DriveApp.getRootFolder();
+    var file = folder.createFile(blob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    
+    var fileId = file.getId();
+    var directUrl = "https://lh3.googleusercontent.com/d/" + fileId;
+    
+    return ContentService.createTextOutput(JSON.stringify({
+      success: true,
+      fileId: fileId,
+      url: directUrl,
+      filename: file.getName(),
+      size: file.getSize()
+    })).setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      error: err.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}`;
+
+/**
+ * Trích xuất File ID từ bất kỳ liên kết chia sẻ Google Drive nào.
+ */
+export function extractGoogleDriveFileId(url: string): string | null {
+  if (!url) return null;
+  const trimmed = url.trim();
+  const fileDMatch = trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (fileDMatch && fileDMatch[1]) return fileDMatch[1];
+
+  const idParamMatch = trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (idParamMatch && idParamMatch[1]) return idParamMatch[1];
+
+  const dMatch = trimmed.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (dMatch && dMatch[1]) return dMatch[1];
+
+  if (/^[a-zA-Z0-9_-]{25,}$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  return null;
+}
+
+/**
+ * Chuyển Google Drive file ID hoặc share link thành URL hình ảnh trực tiếp (Google High-speed CDN).
+ */
+export function toGoogleDriveDirectUrl(fileIdOrUrl: string): string {
+  const fileId = extractGoogleDriveFileId(fileIdOrUrl) || fileIdOrUrl.trim();
+  return `https://lh3.googleusercontent.com/d/${fileId}`;
+}
+
+/**
+ * Chuẩn hóa URL ảnh: nếu là link Google Drive dạng xem trang web, tự động đổi thành direct CDN.
+ */
+export function normalizeGoogleDriveUrl(url: string): string {
+  if (!url) return url;
+  const fileId = extractGoogleDriveFileId(url);
+  if (fileId) {
+    return `https://lh3.googleusercontent.com/d/${fileId}`;
+  }
+  return url;
+}
+
+export function getGoogleDriveWebhookUrl(): string {
+  if (typeof window === "undefined") return "";
+  try {
+    return localStorage.getItem(STORAGE_KEY_GDRIVE_WEBHOOK) || "";
+  } catch {
+    return "";
+  }
+}
+
+export function setGoogleDriveWebhookUrl(url: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (!url.trim()) {
+      localStorage.removeItem(STORAGE_KEY_GDRIVE_WEBHOOK);
+    } else {
+      localStorage.setItem(STORAGE_KEY_GDRIVE_WEBHOOK, url.trim());
+    }
+  } catch {
+    // ignore
+  }
+}
 
 function hasAllowedImageExtension(filename: string): boolean {
   const extension = filename.toLowerCase().match(/\.[^.]+$/)?.[0] ?? "";
   return ALLOWED_IMAGE_EXTENSIONS.has(extension);
 }
 
-function getOfflineImages(): MediaImage[] {
+export function getOfflineImages(): MediaImage[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(STORAGE_KEY_OFFLINE_IMAGES);
@@ -29,7 +124,7 @@ function getOfflineImages(): MediaImage[] {
 function saveOfflineImage(img: MediaImage): void {
   if (typeof window === "undefined") return;
   const current = getOfflineImages();
-  const next = [img, ...current.filter((item) => item.id !== img.id)].slice(0, 50);
+  const next = [img, ...current.filter((item) => item.id !== img.id)].slice(0, 100);
   localStorage.setItem(STORAGE_KEY_OFFLINE_IMAGES, JSON.stringify(next));
 }
 
@@ -52,13 +147,151 @@ export function fileToBase64(file: File): Promise<string> {
 }
 
 /**
- * Tải ảnh lên Cloudflare D1 / Images API.
- * Hỗ trợ fallback offline qua data URL để đảm bảo trải nghiệm người dùng luôn thông suốt.
+ * Đăng ký link ảnh ngoài (Google Drive, CDN) vào Cloudflare D1.
+ * D1 chỉ lưu đường link và metadata, data = NULL để tiết kiệm tối đa dung lượng DB.
+ */
+export async function saveExternalMediaImage(data: {
+  url: string;
+  filename?: string;
+  mimeType?: string;
+  size?: number;
+}): Promise<MediaImage> {
+  const directUrl = normalizeGoogleDriveUrl(data.url);
+  const payload = {
+    url: directUrl,
+    filename: data.filename || "drive-image.jpg",
+    mimeType: data.mimeType || "image/jpeg",
+    size: data.size || 0,
+  };
+
+  try {
+    const res = await fetch("/api/upload", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (res.ok) {
+      const json = await res.json().catch(() => null);
+      if (json && json.success && json.image) {
+        const img: MediaImage = {
+          id: json.image.id,
+          filename: json.image.filename,
+          mimeType: json.image.mimeType,
+          size: json.image.size,
+          url: json.image.url,
+          createdAt: json.image.createdAt || new Date().toISOString(),
+        };
+        saveOfflineImage(img);
+        return img;
+      }
+    }
+  } catch {
+    // Offline fallback
+  }
+
+  const fallbackImg: MediaImage = {
+    id: `gdrive_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    filename: payload.filename,
+    mimeType: payload.mimeType,
+    size: payload.size,
+    url: directUrl,
+    createdAt: new Date().toISOString(),
+  };
+  saveOfflineImage(fallbackImg);
+  return fallbackImg;
+}
+
+/**
+ * Nhập danh sách các đường link Google Drive chia sẻ, chuyển sang direct link và lưu vào Cloudflare D1.
+ */
+export async function importGoogleDriveLinks(
+  urls: string[],
+): Promise<{
+  successful: MediaImage[];
+  failed: Array<{ url: string; error: string }>;
+}> {
+  const successful: MediaImage[] = [];
+  const failed: Array<{ url: string; error: string }> = [];
+
+  for (const raw of urls) {
+    const url = raw.trim();
+    if (!url) continue;
+
+    const fileId = extractGoogleDriveFileId(url);
+    if (!fileId) {
+      failed.push({ url, error: "Link không đúng định dạng Google Drive" });
+      continue;
+    }
+
+    try {
+      const img = await saveExternalMediaImage({
+        url: toGoogleDriveDirectUrl(fileId),
+        filename: `drive-${fileId.slice(0, 8)}.jpg`,
+        mimeType: "image/jpeg",
+      });
+      successful.push(img);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      failed.push({ url, error: message });
+    }
+  }
+
+  return { successful, failed };
+}
+
+/**
+ * Tải trực tiếp file ảnh lên Google Drive thông qua Google Apps Script Webhook.
+ */
+export async function uploadToGoogleDrive(
+  file: File,
+  customWebhookUrl?: string,
+): Promise<{ success: boolean; url: string; filename: string; size: number }> {
+  const webhook = customWebhookUrl || getGoogleDriveWebhookUrl();
+  if (!webhook) {
+    throw new Error("Chưa cấu hình Google Drive Webhook URL");
+  }
+
+  const base64Data = await fileToBase64(file);
+  const res = await fetch(webhook, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify({
+      file: base64Data,
+      filename: file.name,
+      mimeType: file.type,
+    }),
+  });
+
+  const json = (await res.json().catch(() => null)) as {
+    success?: boolean;
+    url?: string;
+    fileId?: string;
+    filename?: string;
+    size?: number;
+    error?: string;
+  } | null;
+
+  if (!json || !json.success || !json.url) {
+    throw new Error(json?.error || "Không thể tải ảnh lên Google Drive");
+  }
+
+  return {
+    success: true,
+    url: json.url,
+    filename: json.filename || file.name,
+    size: json.size || file.size,
+  };
+}
+
+/**
+ * Tải ảnh lên Google Drive (nếu đã cấu hình) và lưu liên kết vào Cloudflare D1.
+ * Nếu chưa cấu hình Google Drive, tải trực tiếp lên Cloudflare Worker / D1.
  */
 export async function uploadMediaImage(file: File): Promise<{
   success: boolean;
   image: MediaImage;
-  source: "remote" | "local_fallback";
+  source: "remote" | "local_fallback" | "google_drive";
   error?: string;
 }> {
   if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
@@ -73,6 +306,28 @@ export async function uploadMediaImage(file: File): Promise<{
     throw new Error("Dung lượng ảnh vượt quá giới hạn 10MB");
   }
 
+  // 1. Thử tải lên Google Drive nếu đã có Webhook URL
+  const gdriveWebhook = getGoogleDriveWebhookUrl();
+  if (gdriveWebhook) {
+    try {
+      const gdriveRes = await uploadToGoogleDrive(file, gdriveWebhook);
+      const savedImg = await saveExternalMediaImage({
+        url: gdriveRes.url,
+        filename: gdriveRes.filename,
+        mimeType: file.type,
+        size: gdriveRes.size,
+      });
+      return {
+        success: true,
+        image: savedImg,
+        source: "google_drive",
+      };
+    } catch {
+      // Fallback tiếp sang upload trực tiếp
+    }
+  }
+
+  // 2. Upload trực tiếp qua /api/upload
   const base64Data = await fileToBase64(file);
 
   try {
@@ -99,6 +354,7 @@ export async function uploadMediaImage(file: File): Promise<{
           url: data.image.url,
           createdAt: data.image.createdAt || new Date().toISOString(),
         };
+        saveOfflineImage(img);
         return {
           success: true,
           image: img,
@@ -110,7 +366,7 @@ export async function uploadMediaImage(file: File): Promise<{
     // Không thể kết nối tới server -> tiếp tục fallback
   }
 
-  // Fallback sang lưu trữ data URI cục bộ (giữ ảnh hoạt động ngay cả khi offline)
+  // 3. Fallback sang lưu trữ data URI cục bộ (giữ ảnh hoạt động ngay cả khi offline)
   const fallbackImg: MediaImage = {
     id: `local_img_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
     filename: file.name,
@@ -130,7 +386,7 @@ export async function uploadMediaImage(file: File): Promise<{
 }
 
 /**
- * Tải đồng thời hoặc tuần tự nhiều ảnh lên Cloudflare có thông báo tiến trình.
+ * Tải đồng thời hoặc tuần tự nhiều ảnh có thông báo tiến trình.
  */
 export async function uploadMultipleMediaImages(
   files: File[],
@@ -167,7 +423,7 @@ export async function uploadMultipleMediaImages(
 }
 
 /**
- * Lấy danh sách ảnh đã upload trên Cloudflare.
+ * Lấy danh sách ảnh đã lưu trên Cloudflare D1.
  */
 export async function getMediaImages(): Promise<MediaImage[]> {
   const offline = getOfflineImages();
@@ -186,7 +442,6 @@ export async function getMediaImages(): Promise<MediaImage[]> {
           createdAt: String(img.created_at || img.createdAt || new Date().toISOString()),
         }));
 
-        // Gộp ảnh remote và offline (loại bỏ trùng lặp ID)
         const map = new Map<string, MediaImage>();
         for (const img of remoteImages) {
           map.set(img.id, img);
@@ -209,7 +464,7 @@ export async function getMediaImages(): Promise<MediaImage[]> {
 }
 
 /**
- * Xóa ảnh theo ID trên Cloudflare.
+ * Xóa ảnh theo ID trên Cloudflare D1.
  */
 export async function deleteMediaImage(id: string): Promise<boolean> {
   removeOfflineImage(id);

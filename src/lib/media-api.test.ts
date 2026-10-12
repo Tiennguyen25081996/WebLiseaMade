@@ -1,5 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { uploadMediaImage, getMediaImages, deleteMediaImage } from "./media-api";
+import {
+  uploadMediaImage,
+  getMediaImages,
+  deleteMediaImage,
+  extractGoogleDriveFileId,
+  normalizeGoogleDriveUrl,
+  toGoogleDriveDirectUrl,
+  importGoogleDriveLinks,
+  saveExternalMediaImage,
+  getGoogleDriveWebhookUrl,
+  setGoogleDriveWebhookUrl,
+} from "./media-api";
 
 describe("media-api", () => {
   beforeEach(() => {
@@ -90,5 +101,78 @@ describe("media-api", () => {
 
     const result = await deleteMediaImage("img_remote_1");
     expect(result).toBe(true);
+  });
+
+  it("trích xuất file ID và chuẩn hóa link Google Drive chính xác", () => {
+    const shareLink = "https://drive.google.com/file/d/1A2B3C4D5E_test-id/view?usp=sharing";
+    const fileId = extractGoogleDriveFileId(shareLink);
+    expect(fileId).toBe("1A2B3C4D5E_test-id");
+
+    const directCdnUrl = toGoogleDriveDirectUrl(shareLink);
+    expect(directCdnUrl).toBe("https://lh3.googleusercontent.com/d/1A2B3C4D5E_test-id");
+
+    const normalized = normalizeGoogleDriveUrl(shareLink);
+    expect(normalized).toBe("https://lh3.googleusercontent.com/d/1A2B3C4D5E_test-id");
+
+    // Ảnh thường giữ nguyên
+    expect(normalizeGoogleDriveUrl("/figma-images/cat-1.png")).toBe("/figma-images/cat-1.png");
+  });
+
+  it("nhập hàng loạt link Google Drive và lưu vào Cloudflare D1", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        image: {
+          id: "gdrive_test",
+          filename: "drive-photo.jpg",
+          mimeType: "image/jpeg",
+          size: 0,
+          url: "https://lh3.googleusercontent.com/d/1X2Y3Z",
+          createdAt: "2026-10-12T00:00:00Z",
+        },
+      }),
+    } as unknown as Response);
+
+    const { successful, failed } = await importGoogleDriveLinks([
+      "https://drive.google.com/file/d/1X2Y3Z/view",
+      "invalid-link",
+    ]);
+
+    expect(successful.length).toBe(1);
+    expect(failed.length).toBe(1);
+    expect(successful[0].url).toBe("https://lh3.googleusercontent.com/d/1X2Y3Z");
+  });
+
+  it("quản lý cấu hình Google Drive Webhook URL trong localStorage", () => {
+    expect(getGoogleDriveWebhookUrl()).toBe("");
+    setGoogleDriveWebhookUrl("https://script.google.com/macros/s/test/exec");
+    expect(getGoogleDriveWebhookUrl()).toBe("https://script.google.com/macros/s/test/exec");
+    setGoogleDriveWebhookUrl("");
+    expect(getGoogleDriveWebhookUrl()).toBe("");
+  });
+
+  it("lưu thông tin ảnh ngoài vào Cloudflare D1", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        image: {
+          id: "ext_1",
+          filename: "test.jpg",
+          mimeType: "image/jpeg",
+          size: 100,
+          url: "https://lh3.googleusercontent.com/d/123",
+          createdAt: "2026-10-12T00:00:00Z",
+        },
+      }),
+    } as unknown as Response);
+
+    const img = await saveExternalMediaImage({
+      url: "https://lh3.googleusercontent.com/d/123",
+      filename: "test.jpg",
+    });
+    expect(img.id).toBe("ext_1");
+    expect(img.url).toBe("https://lh3.googleusercontent.com/d/123");
   });
 });

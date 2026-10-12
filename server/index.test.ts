@@ -26,9 +26,17 @@ function createMockDb(): { db: D1Database; execCalls: string[]; batchCalls: D1Pr
         } as T;
       }
       if (sql.includes("FROM media_files WHERE id = ?")) {
+        if (bindings[0] === "gdrive_1") {
+          return {
+            mime_type: "image/jpeg",
+            data: null,
+            url: "https://lh3.googleusercontent.com/d/1XyZ",
+          } as T;
+        }
         return {
           mime_type: "image/png",
           data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+          url: "/api/images/img_1",
         } as T;
       }
       return null;
@@ -239,6 +247,30 @@ describe("server worker and D1 schema", () => {
     expect(execCalls.some((sql) => sql.includes("INSERT INTO media_files"))).toBe(true);
   });
 
+  it("POST /api/upload lưu trực tiếp link ảnh Google Drive vào D1 với data = NULL (tiết kiệm quota)", async () => {
+    const { db, execCalls } = createMockDb();
+    const env: Env = { DB: db };
+
+    const req = new Request("http://localhost/api/upload", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        url: "https://lh3.googleusercontent.com/d/1a2b3c4d5e",
+        filename: "gdrive-summer-dress.jpg",
+        mimeType: "image/jpeg",
+        size: 512000,
+      }),
+    });
+
+    const res = await worker.fetch(req, env);
+    expect(res.status).toBe(201);
+    const data = (await res.json()) as { success: boolean; image: { id: string; url: string; filename: string } };
+    expect(data.success).toBe(true);
+    expect(data.image.url).toBe("https://lh3.googleusercontent.com/d/1a2b3c4d5e");
+    expect(data.image.filename).toBe("gdrive-summer-dress.jpg");
+    expect(execCalls.some((sql) => sql.includes("INSERT INTO media_files"))).toBe(true);
+  });
+
   it("POST /api/upload từ chối file có chữ ký (magic bytes) không khớp", async () => {
     const { db } = createMockDb();
     const env: Env = { DB: db };
@@ -281,6 +313,16 @@ describe("server worker and D1 schema", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toBe("image/png");
     expect(res.headers.get("Cache-Control")).toContain("immutable");
+  });
+
+  it("GET /api/images/:id redirects to Google Drive URL when data is null", async () => {
+    const { db } = createMockDb();
+    const env: Env = { DB: db };
+
+    const req = new Request("http://localhost/api/images/gdrive_1", { method: "GET" });
+    const res = await worker.fetch(req, env);
+    expect(res.status).toBe(302);
+    expect(res.headers.get("Location")).toBe("https://lh3.googleusercontent.com/d/1XyZ");
   });
 
   it("DELETE /api/images/:id removes image from media_files", async () => {
