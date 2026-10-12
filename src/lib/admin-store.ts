@@ -2,7 +2,13 @@ import type { Category, Product, HomePageSettings } from "@/types";
 import { CATEGORIES } from "@/data/categories";
 import { PRODUCTS } from "@/data/products";
 import { useEffect, useState, useMemo } from "react";
-import { normalizeGoogleDriveUrl } from "@/lib/media-api";
+import {
+  normalizeGoogleDriveUrl,
+  syncOfflineImagesToCloudflare,
+  STORAGE_KEY_GDRIVE_WEBHOOK,
+  getGoogleDriveWebhookUrl,
+  setCachedDriveWebhookUrl,
+} from "@/lib/media-api";
 import {
   type ChatbotConfig,
   getChatbotConfig,
@@ -182,6 +188,13 @@ export async function syncStoreWithRemote(): Promise<boolean> {
         localStorage.setItem(STORAGE_KEY_DISCOUNTS, JSON.stringify(json.settings.discounts));
         changed = true;
       }
+      if (json.settings.gdrive_webhook_url) {
+        const webhook = String(json.settings.gdrive_webhook_url).trim();
+        if (typeof window !== "undefined") {
+          localStorage.setItem(STORAGE_KEY_GDRIVE_WEBHOOK, webhook);
+        }
+        setCachedDriveWebhookUrl(webhook);
+      }
       if (changed) {
         notifySubscribers();
       }
@@ -202,12 +215,15 @@ export async function pushAllSettingsToRemote(): Promise<{ success: boolean; err
     const home = getAdminHomePageSettings();
     const cats = getAdminCategories();
     const discs = getAdminDiscountEvents();
+    const webhook = getGoogleDriveWebhookUrl();
 
     await Promise.all([
+      syncOfflineImagesToCloudflare(),
       syncSettingToRemote("products", prods),
       syncSettingToRemote("home_settings", home),
       syncSettingToRemote("categories", cats),
       syncSettingToRemote("discounts", discs),
+      syncSettingToRemote("gdrive_webhook_url", webhook),
     ]);
 
     return { success: true };

@@ -1,5 +1,7 @@
 import type { Product } from "@/types";
 import { formatVnd } from "@/lib/format";
+import { getOrderByCodeApi } from "@/lib/api";
+import { readOrders } from "@/lib/orders";
 
 export interface ChatMessage {
   id: string;
@@ -29,10 +31,11 @@ export const DEFAULT_CHATBOT_CONFIG: ChatbotConfig = {
   welcomeMessage:
     "Xin chào quý khách! Em là trợ lý thời trang LiseaMade. Em có thể gợi ý mẫu đầm váy hè, tư vấn chọn size chuẩn theo dáng người hoặc giải đáp chính sách mua hàng cho mình ạ ✨",
   quickQuestions: [
+    "Sản phẩm bán chạy nhất 🔥",
+    "Kiểm tra đơn hàng 📦",
     "Tư vấn chọn size",
     "Váy đầm hè mới nhất",
     "Chính sách freeship & đổi trả",
-    "Set đồ đi biển",
   ],
   systemPrompt:
     "Bạn là Lisea AI Stylist — chuyên viên tư vấn thời trang cao cấp của thương hiệu LiseaMade. Luôn lịch sự, nhã nhặn, am hiểu thời trang mùa hè (voan, linen, cotton) và tư vấn size chuẩn xác.",
@@ -181,6 +184,229 @@ export function answerPolicy(text: string): string | null {
 }
 
 /**
+ * Tra cứu trạng thái đơn hàng trực tiếp trong DB (Cloudflare D1 / LocalStorage)
+ */
+export async function checkOrderStatusInDb(
+  query: string
+): Promise<{ text: string } | null> {
+  const normalized = query.trim();
+
+  // 1. Nhận diện mã đơn hàng (định dạng LM-XXXXXX hoặc biến thể LM-)
+  const codeMatch =
+    normalized.match(/\b(LM-[A-HJ-NP-Z0-9]{4,10})\b/i) ||
+    normalized.match(/\b((?:LM|LSM|ORD)[-_]?[A-Z0-9]{4,10})\b/i) ||
+    normalized.match(/(?:mã\s*(?:đơn|vận\s*đơn)?|đơn\s*hàng)\s*[:#\s]?\s*([A-Za-z0-9-]{6,12})/i);
+
+  // 2. Nhận diện số điện thoại (10 chữ số)
+  const phoneMatch = normalized.match(/(?:sđt|số\s*điện\s*thoại|phone|đt)\s*[:#\s]?\s*(0[35789]\d{8})\b/i);
+
+  if (codeMatch) {
+    const rawCode = codeMatch[1].toUpperCase();
+    const formattedCode = rawCode.startsWith("LM-")
+      ? rawCode
+      : rawCode.includes("-")
+        ? rawCode
+        : `LM-${rawCode}`;
+
+    try {
+      const res = await getOrderByCodeApi(formattedCode);
+      if (res.order) {
+        const order = res.order;
+        const statusMap: Record<string, string> = {
+          pending: "🕒 Chờ xác nhận (Shop đang kiểm tra thông tin)",
+          processing: "⚙️ Đang xử lý (Shop đang chuẩn bị và đóng gói hàng)",
+          shipping: "🚚 Đang giao hàng (Đơn đã bàn giao cho shipper)",
+          delivered: "✅ Đã giao thành công (Hoàn tất giao hàng)",
+          cancelled: "❌ Đã hủy đơn",
+        };
+
+        const statusText = statusMap[order.status || "pending"] || "Đang xử lý";
+        const dateStr = order.createdAt
+          ? new Date(order.createdAt).toLocaleDateString("vi-VN")
+          : "Gần đây";
+        const customerName = order.info?.fullName || "Quý khách";
+        const phone = order.info?.phone
+          ? order.info.phone.replace(/(\d{3})\d{4}(\d{3})/, "$1****$2")
+          : "";
+
+        const itemsSummary = (order.lines || [])
+          .map(
+            (line) =>
+              `• **${line.product?.name || "Sản phẩm"}** (Size ${line.variant?.label || "Tiêu chuẩn"}) x${line.quantity} — ${formatVnd(line.unitPrice * line.quantity)}`
+          )
+          .join("\n");
+
+        let shippingInfo = "";
+        if (order.trackingCode) {
+          const carrier = (order.carrier || "spx").toUpperCase();
+          const trackUrl =
+            carrier === "SPX"
+              ? `https://spx.vn/track?${order.trackingCode}`
+              : carrier === "GHTK"
+                ? `https://i.ghtk.vn/${order.trackingCode}`
+                : `https://spx.vn/track?${order.trackingCode}`;
+
+          shippingInfo = `\n\n🚚 **Hành trình vận chuyển**:\n• Đơn vị giao hàng: **${carrier} Express**\n• Mã vận đơn: \`${order.trackingCode}\`\n👉 [Bấm vào đây để theo dõi đơn trên ${carrier}](${trackUrl})`;
+        } else if (order.status === "shipping") {
+          shippingInfo = `\n\n🚚 Đơn hàng đang trên đường giao đến bạn. Nhân viên shipper sẽ liên hệ trước khi phát hàng ạ.`;
+        }
+
+        return {
+          text: `Dạ em đã tra cứu thông tin đơn hàng **${order.code}** trên hệ thống LiseaMade ạ! ✨\n\n👤 **Khách hàng**: ${customerName} ${phone ? `(${phone})` : ""}\n📅 **Ngày đặt**: ${dateStr}\n📌 **Tình trạng đơn**: **${statusText}**\n\n🛒 **Chi tiết kiện hàng**:\n${itemsSummary}\n💰 **Tổng thanh toán**: **${formatVnd(order.totals.total)}** (${order.info?.paymentMethod === "cod" ? "Thanh toán khi nhận hàng - COD" : "Đã chuyển khoản"})${shippingInfo}\n\nNếu cần hỗ trợ thay đổi địa chỉ hay thời gian nhận hàng, mình nhắn em hoặc gọi hotline 0987 654 321 nhé! 💕`,
+        };
+      } else {
+        return {
+          text: `Dạ em đã kiểm tra trên hệ thống nhưng chưa tìm thấy đơn hàng mã **${formattedCode}** ạ.\n\n👉 Mình vui lòng kiểm tra lại chính xác mã đơn (định dạng \`LM-XXXXXX\` được cung cấp khi hoàn tất đặt hàng), hoặc gửi cho em **Số điện thoại** đặt hàng để em hỗ trợ tra cứu nhé!`,
+        };
+      }
+    } catch {
+      return {
+        text: `Dạ em đã nhận được mã đơn **${formattedCode}**, tuy nhiên hệ thống đang bảo trì tra cứu một chút. Mình có thể vào trang [Tra cứu đơn hàng](/tra-cuu-don) hoặc liên hệ hotline 0987 654 321 để kiểm tra ngay nhé!`,
+      };
+    }
+  }
+
+  // Tra cứu qua số điện thoại nếu có
+  if (phoneMatch) {
+    const phone = phoneMatch[1];
+    const allOrders = readOrders();
+    const matchedOrders = allOrders.filter(
+      (o) => o.info?.phone?.replace(/\s+/g, "") === phone
+    );
+
+    if (matchedOrders.length > 0) {
+      const latest = matchedOrders[0];
+      const statusMap: Record<string, string> = {
+        pending: "Chờ xác nhận",
+        processing: "Đang chuẩn bị",
+        shipping: "Đang giao hàng",
+        delivered: "Đã giao thành công",
+        cancelled: "Đã hủy",
+      };
+      return {
+        text: `Dạ em tìm thấy đơn hàng gần nhất của số điện thoại **${phone}**:\n\n📦 **Mã đơn**: **${latest.code}**\n📌 **Trạng thái**: **${statusMap[latest.status || "pending"]}**\n💰 **Tổng tiền**: ${formatVnd(latest.totals.total)}\n\n👉 [Xem chi tiết hành trình đơn hàng tại đây](/tra-cuu-don?code=${latest.code}) ạ!`,
+      };
+    } else {
+      return {
+        text: `Dạ em chưa tìm thấy đơn hàng nào liên kết với số điện thoại **${phone}** trong hệ thống. Mình vui lòng kiểm tra lại số điện thoại hoặc gửi cho em **Mã đơn hàng** (dạng \`LM-XXXXXX\`) nha!`,
+      };
+    }
+  }
+
+  // Câu hỏi chung chung về đơn hàng nhưng chưa nhập mã
+  const lower = normalized.toLowerCase();
+  const isAskingOrderGeneral =
+    (lower.includes("đơn hàng") || lower.includes("mã đơn") || lower.includes("đơn của tôi") || lower.includes("tra cứu đơn") || lower.includes("kiểm tra đơn")) &&
+    (lower.includes("tình trạng") || lower.includes("ở đâu") || lower.includes("đến đâu") || lower.includes("khi nào") || lower.includes("kiểm tra") || lower.includes("xem") || lower.includes("tra cứu"));
+
+  if (isAskingOrderGeneral) {
+    return {
+      text: `Dạ để kiểm tra tình trạng đơn hàng và xem hàng đã đi đến đâu, mình vui lòng gửi cho em **Mã đơn hàng** (định dạng \`LM-XXXXXX\`, ví dụ: *LM-8F3K2Q*) hoặc số điện thoại đặt hàng, em sẽ tra cứu ngay trong hệ thống cho mình nhé! ✨\n\nHoặc mình cũng có thể tự tra cứu trực tiếp tại trang [Tra cứu đơn hàng](/tra-cuu-don) ạ.`,
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Truy vấn sản phẩm bán chạy nhất (Best Sellers) dựa trên thống kê đơn hàng trong DB và danh mục
+ */
+export function findBestSellingProducts(
+  query: string,
+  products: Product[]
+): { message: string; items: Product[] } | null {
+  const q = query.toLowerCase();
+
+  const isAskingBestSeller =
+    q.includes("bán chạy") ||
+    q.includes("chạy nhất") ||
+    q.includes("hot nhất") ||
+    q.includes("mua nhiều nhất") ||
+    q.includes("best seller") ||
+    q.includes("bestseller") ||
+    q.includes("được yêu thích nhất") ||
+    q.includes("ưa chuộng nhất") ||
+    q.includes("hot trend");
+
+  if (!isAskingBestSeller) return null;
+
+  // 1. Thống kê số lượng bán thực tế từ các đơn hàng trong DB / LocalStorage
+  const salesMap = new Map<string, number>();
+  const orders = readOrders();
+  for (const o of orders) {
+    for (const line of o.lines || []) {
+      salesMap.set(line.productId, (salesMap.get(line.productId) || 0) + line.quantity);
+    }
+  }
+
+  // 2. Sắp xếp sản phẩm: theo số lượng bán thực tế > badge Bán chạy > rating
+  const sorted = [...products].sort((a, b) => {
+    const salesA = salesMap.get(a.id) || 0;
+    const salesB = salesMap.get(b.id) || 0;
+    if (salesB !== salesA) return salesB - salesA;
+    if (a.badges?.includes("Bán chạy") && !b.badges?.includes("Bán chạy")) return -1;
+    if (b.badges?.includes("Bán chạy") && !a.badges?.includes("Bán chạy")) return 1;
+    return (b.rating || 0) - (a.rating || 0);
+  });
+
+  // Lọc theo loại sản phẩm nếu người dùng hỏi cụ thể (ví dụ: "váy nào bán chạy nhất")
+  let filtered = sorted;
+  if (q.includes("váy") || q.includes("đầm")) {
+    filtered = sorted.filter(
+      (p) => p.category === "vay-dam" || p.name.toLowerCase().includes("đầm") || p.name.toLowerCase().includes("váy")
+    );
+  } else if (q.includes("áo")) {
+    filtered = sorted.filter(
+      (p) => p.category === "ao" || p.name.toLowerCase().includes("áo")
+    );
+  } else if (q.includes("set")) {
+    filtered = sorted.filter(
+      (p) => p.category === "set-do" || p.name.toLowerCase().includes("set")
+    );
+  }
+
+  const topItems = (filtered.length > 0 ? filtered : sorted).slice(0, 3);
+
+  const lines = topItems.map((p, idx) => {
+    const sales = salesMap.get(p.id);
+    const salesBadge = sales && sales > 0 ? ` (Đã bán ${sales} đơn)` : " (Top Hot Seller)";
+    return `🔥 ${idx + 1}. **${p.name}** — ${formatVnd(p.price)}${salesBadge}\n   ${p.shortDescription || p.description.slice(0, 90)}...`;
+  });
+
+  return {
+    message: `Dạ em xin gửi mình danh sách **Sản Phẩm Bán Chạy Nhất** đang được các nàng săn đón nhiều nhất tại LiseaMade đây ạ:\n\n${lines.join("\n\n")}\n\n✨ Toàn bộ sản phẩm đều cam kết chất liệu cao cấp, tôn dáng và bền đẹp. Mình có thể bấm vào thẻ sản phẩm bên dưới để xem thêm ảnh và đặt hàng nhé!`,
+    items: topItems,
+  };
+}
+
+/**
+ * Lọc sản phẩm theo khoảng giá trong catalog DB
+ */
+export function searchProductsByPrice(
+  query: string,
+  products: Product[]
+): { message: string; items: Product[] } | null {
+  const q = query.toLowerCase();
+
+  // Tìm mẫu "dưới 500k", "dưới 400.000", "tầm 300k"
+  const underMatch = q.match(/dưới\s*(\d+)(?:\s*(?:k|nghìn|ngàn|000))/i);
+  if (underMatch) {
+    const rawVal = Number(underMatch[1]);
+    const maxPrice = rawVal < 1000 ? rawVal * 1000 : rawVal;
+    const matched = products.filter((p) => p.price <= maxPrice);
+    if (matched.length > 0) {
+      const selected = matched.slice(0, 3);
+      return {
+        message: `Dạ em đã tìm thấy các mẫu sản phẩm có giá dưới **${formatVnd(maxPrice)}** cực kỳ xinh xắn cho mình đây ạ:\n\n${selected.map((p, i) => `${i + 1}. **${p.name}** — **${formatVnd(p.price)}**`).join("\n")}\n\nQuý khách chọn mẫu ưng ý bên dưới để xem chi tiết nhé!`,
+        items: selected,
+      };
+    }
+  }
+
+  return null;
+}
+
+/**
  * Tìm kiếm và gợi ý sản phẩm phù hợp từ catalog
  */
 export function recommendProducts(text: string, products: Product[]): { message: string; items: Product[] } | null {
@@ -313,7 +539,7 @@ export async function getAiChatbotResponse(
   }
 
   // 2. Chế độ Catalog AI (Tích hợp sẵn, offline, bảo mật, không tốn token)
-  // Ưu tiên 1: Chào hỏi
+  // Ưu tiên 1: Chào hỏi thuần túy
   const lower = trimmed.toLowerCase();
   if (
     lower === "hi" ||
@@ -324,23 +550,47 @@ export async function getAiChatbotResponse(
     lower.includes("shop ơi")
   ) {
     return {
-      text: "Dạ LiseaMade xin chào quý khách ạ! 🌸 Rất vui được đón tiếp mình. Hôm nay mình đang tìm kiếm đầm váy đi chơi hè, áo nhẹ mát hay cần em tư vấn chọn size chuẩn cho mình ạ?",
+      text: "Dạ LiseaMade xin chào quý khách ạ! 🌸 Rất vui được đón tiếp mình. Hôm nay mình đang tìm kiếm đầm váy đi chơi hè, xem sản phẩm bán chạy nhất hay cần kiểm tra đơn hàng ạ?",
     };
   }
 
-  // Ưu tiên 2: Tư vấn chọn size
+  // Ưu tiên 2: Tra cứu trạng thái đơn hàng trong DB
+  const orderLookup = await checkOrderStatusInDb(trimmed);
+  if (orderLookup) {
+    return { text: orderLookup.text };
+  }
+
+  // Ưu tiên 3: Tra cứu sản phẩm bán chạy nhất (Best Sellers)
+  const bestSellerResult = findBestSellingProducts(trimmed, products);
+  if (bestSellerResult) {
+    return {
+      text: bestSellerResult.message,
+      recommendedProducts: bestSellerResult.items,
+    };
+  }
+
+  // Ưu tiên 4: Tra cứu sản phẩm theo khoảng giá
+  const priceFilterResult = searchProductsByPrice(trimmed, products);
+  if (priceFilterResult) {
+    return {
+      text: priceFilterResult.message,
+      recommendedProducts: priceFilterResult.items,
+    };
+  }
+
+  // Ưu tiên 5: Tư vấn chọn size
   const sizeReply = adviseSize(trimmed);
   if (sizeReply) {
     return { text: sizeReply };
   }
 
-  // Ưu tiên 3: Chính sách giao hàng, đổi trả, bảo hành, liên hệ
+  // Ưu tiên 6: Chính sách giao hàng, đổi trả, bảo hành, liên hệ
   const policyReply = answerPolicy(trimmed);
   if (policyReply) {
     return { text: policyReply };
   }
 
-  // Ưu tiên 4: Hỏi về sản phẩm và mẫu mã
+  // Ưu tiên 7: Hỏi về sản phẩm và mẫu mã
   const productRec = recommendProducts(trimmed, products);
   if (productRec) {
     return {

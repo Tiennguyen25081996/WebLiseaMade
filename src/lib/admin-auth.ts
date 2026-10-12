@@ -10,14 +10,31 @@ export interface AdminUser {
 
 const STORAGE_KEY_AUTH = "liseamade.admin.auth.v1";
 const STORAGE_KEY_ATTEMPTS = "liseamade.admin.login.attempts.v1";
+export const STORAGE_KEY_CUSTOM_CREDENTIALS = "liseamade.admin.credentials.v1";
 const AUTH_EVENT = "liseamade:admin-auth";
 
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_MS = 5 * 60 * 1000;
 
-// Tài khoản demo local. Production phải thay bằng backend auth + HttpOnly cookie.
-const VALID_CREDENTIALS: Record<string, { pass: string; name: string; role: string }> = {
+// So sánh chuỗi an toàn theo thời gian (chống timing-attack)
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) {
+    let diff = a.length ^ b.length;
+    for (let i = 0; i < a.length; i++) {
+      diff |= a.charCodeAt(i) ^ (b.charCodeAt(i % b.length) || 0);
+    }
+    return false;
+  }
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
+// Tài khoản mặc định hệ thống. Quản trị viên có thể đổi mật khẩu qua changeAdminPassword.
+const DEFAULT_CREDENTIALS: Record<string, { pass: string; name: string; role: string }> = {
   admin: {
     pass: "admin123",
     name: "Quản trị viên trưởng",
@@ -29,6 +46,23 @@ const VALID_CREDENTIALS: Record<string, { pass: string; name: string; role: stri
     role: "Store Manager",
   },
 };
+
+function getValidCredentials(): Record<string, { pass: string; name: string; role: string }> {
+  const base = { ...DEFAULT_CREDENTIALS };
+  if (typeof window === "undefined") return base;
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY_CUSTOM_CREDENTIALS);
+    if (raw) {
+      const custom = JSON.parse(raw);
+      if (typeof custom === "object" && custom !== null) {
+        return { ...base, ...custom };
+      }
+    }
+  } catch {
+    // Fallback base
+  }
+  return base;
+}
 
 interface LoginAttempts {
   count: number;
@@ -99,9 +133,15 @@ function clearAttempts(): void {
 function registerFailedAttempt(): void {
   const current = getAttempts();
   const count = current.count + 1;
+  let lockedUntil: number | undefined;
+  if (count >= MAX_FAILED_ATTEMPTS) {
+    // Lũy tiến chống brute-force: lần 5 = 5p, lần 6 = 15p, lần 7+ = 30p
+    const multiplier = count === 5 ? 1 : count === 6 ? 3 : 6;
+    lockedUntil = Date.now() + LOCKOUT_MS * multiplier;
+  }
   setAttempts({
     count,
-    lockedUntil: count >= MAX_FAILED_ATTEMPTS ? Date.now() + LOCKOUT_MS : undefined,
+    lockedUntil,
   });
 }
 
@@ -132,8 +172,9 @@ export function loginAdmin(
     return { success: false, error: `Đăng nhập bị khóa tạm thời. Thử lại sau ${minutes} phút.` };
   }
 
-  const account = VALID_CREDENTIALS[username];
-  if (!account || account.pass !== password) {
+  const creds = getValidCredentials();
+  const account = creds[username];
+  if (!account || !timingSafeEqual(account.pass, password)) {
     registerFailedAttempt();
     return { success: false, error: "Tên đăng nhập hoặc mật khẩu không chính xác." };
   }
@@ -161,6 +202,35 @@ export function loginAdmin(
   }
 
   return { success: true, user };
+}
+
+export function changeAdminPassword(
+  usernameInput: string,
+  oldPass: string,
+  newPass: string
+): { success: boolean; error?: string } {
+  const username = usernameInput.trim().toLowerCase();
+  if (!newPass || newPass.trim().length < 6) {
+    return { success: false, error: "Mật khẩu mới phải có tối thiểu 6 ký tự." };
+  }
+  const creds = getValidCredentials();
+  const account = creds[username];
+  if (!account || !timingSafeEqual(account.pass, oldPass.trim())) {
+    return { success: false, error: "Mật khẩu hiện tại không chính xác." };
+  }
+
+  const updated = {
+    ...creds,
+    [username]: {
+      ...account,
+      pass: newPass.trim(),
+    },
+  };
+
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(STORAGE_KEY_CUSTOM_CREDENTIALS, JSON.stringify(updated));
+  }
+  return { success: true };
 }
 
 export function logoutAdmin(): void {
