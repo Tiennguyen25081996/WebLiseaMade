@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAdminAuth } from "@/lib/admin-auth";
 import { useAdminStore, type DiscountEvent } from "@/lib/admin-store";
-import { readOrders, updateOrderStatus, ORDERS_UPDATED_EVENT } from "@/lib/orders";
+import { readOrders, updateOrderStatus, updateOrderShipping, ORDERS_UPDATED_EVENT } from "@/lib/orders";
 import type { Category, Product, PlacedOrder, OrderStatus } from "@/types";
 import { Button } from "@/components/ui/Button";
 import {
@@ -78,6 +78,18 @@ export default function AdminBoardPage() {
     if (ok) {
       loadOrders();
       showToast(`Đã cập nhật trạng thái đơn ${code}!`);
+    }
+  };
+
+  const handleUpdateShipping = (
+    code: string,
+    shipping: { trackingCode?: string; carrier?: PlacedOrder["carrier"] },
+  ) => {
+    const ok = updateOrderShipping(code, shipping);
+    if (ok) {
+      loadOrders();
+      setViewingOrder((prev) => (prev ? { ...prev, ...shipping } : null));
+      showToast(`Đã lưu mã vận đơn cho đơn ${code}!`);
     }
   };
 
@@ -569,6 +581,7 @@ export default function AdminBoardPage() {
       <OrderDetailModal
         order={viewingOrder}
         onClose={() => setViewingOrder(null)}
+        onUpdateShipping={handleUpdateShipping}
       />
     </div>
   );

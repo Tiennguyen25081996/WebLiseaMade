@@ -23,9 +23,22 @@ export default function OrderSuccessPage() {
         <p className="mt-2 text-sm text-ink-500">
           Đơn lưu trên thiết bị khác hoặc dữ liệu đã xoá khỏi localStorage.
         </p>
-        <Button to="/tra-cuu-don" variant="secondary" className="mt-4">
-          Tra cứu đơn
-        </Button>
+        <div className="mt-4 flex flex-col sm:flex-row gap-2.5 sm:gap-3 w-full">
+          <Button
+            to="/tra-cuu-don"
+            variant="secondary"
+            className="w-full sm:w-auto text-center justify-center min-h-[44px] py-2.5"
+          >
+            Tra cứu đơn
+          </Button>
+          <Button
+            to="/san-pham"
+            variant="primary"
+            className="w-full sm:w-auto text-center justify-center min-h-[44px] py-2.5"
+          >
+            Về trang sản phẩm →
+          </Button>
+        </div>
       </div>
     );
   }
@@ -43,12 +56,17 @@ export default function OrderSuccessPage() {
         <PlacedOrderCard order={order} />
       </div>
 
-      <div className="mt-6 flex flex-wrap gap-3">
-        <Button to="/san-pham" variant="secondary">
+      <div className="mt-6 flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-3 w-full">
+        <Button
+          to="/san-pham"
+          variant="primary"
+          className="w-full sm:w-auto text-center justify-center min-h-[44px] py-2.5 px-5 font-semibold shadow-2xs"
+        >
           Tiếp tục mua sắm →
         </Button>
         <Button
           variant="secondary"
+          className="w-full sm:w-auto text-center justify-center min-h-[44px] py-2.5 px-5"
           onClick={() => {
             const done: (ok: boolean) => void = (ok) => setCopied(ok);
             if (navigator.clipboard?.writeText) {
@@ -62,7 +80,11 @@ export default function OrderSuccessPage() {
         >
           {copied ? "Đã copy mã ✓" : "Copy mã · Tra cứu đơn"}
         </Button>
-        <Button to={`/tra-cuu-don?ma=${order.code}`} variant="ghost">
+        <Button
+          to={`/tra-cuu-don?ma=${order.code}`}
+          variant="secondary"
+          className="w-full sm:w-auto text-center justify-center min-h-[44px] py-2.5 px-5"
+        >
           Tra cứu đơn này →
         </Button>
       </div>

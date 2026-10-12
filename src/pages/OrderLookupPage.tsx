@@ -96,10 +96,11 @@ export default function OrderLookupPage() {
               ⚠ Mã đơn hàng phải bắt đầu bằng &quot;LM-&quot; và theo sau là 6 ký tự chữ hoặc số (ví dụ: LM-8F3K2Q).
             </p>
           )}
-          <div className="flex w-full flex-wrap items-center gap-2">
+          <div className="flex w-full flex-col sm:flex-row items-center gap-2">
             <Button
               variant="primary"
               size="md"
+              className="w-full sm:w-auto min-h-[44px] justify-center"
               disabled={!isFormatValid}
               onClick={handleSearch}
             >
@@ -137,9 +138,10 @@ export default function OrderLookupPage() {
 
         <div className="mt-5"><PlacedOrderCard order={order} /></div>
 
-        <div className="mt-6 flex flex-wrap gap-3">
+        <div className="mt-6 flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-3 w-full">
           <Button
             variant="secondary"
+            className="w-full sm:w-auto text-center justify-center min-h-[44px] py-2.5 px-5"
             onClick={() => {
               setSubmittedCode("");
               setCodeInput("");
@@ -148,7 +150,13 @@ export default function OrderLookupPage() {
           >
             Tra cứu đơn khác
           </Button>
-          <Button to="/san-pham" variant="ghost">Tiếp tục mua sắm →</Button>
+          <Button
+            to="/san-pham"
+            variant="primary"
+            className="w-full sm:w-auto text-center justify-center min-h-[44px] py-2.5 px-5 font-semibold"
+          >
+            Tiếp tục mua sắm →
+          </Button>
         </div>
       </div>
     );
@@ -168,9 +176,10 @@ export default function OrderLookupPage() {
         </p>
       </div>
 
-      <div className="mt-6 flex flex-wrap items-center gap-3">
+      <div className="mt-6 flex flex-col sm:flex-row items-center gap-2.5 sm:gap-3 w-full">
         <Button
           variant="primary"
+          className="w-full sm:w-auto text-center justify-center min-h-[44px] py-2.5 px-5"
           onClick={() => {
             setSubmittedCode("");
             setCodeInput("");
@@ -179,7 +188,13 @@ export default function OrderLookupPage() {
         >
           Nhập lại mã tra cứu
         </Button>
-        <Button to="/san-pham" variant="secondary">Xem sản phẩm</Button>
+        <Button
+          to="/san-pham"
+          variant="secondary"
+          className="w-full sm:w-auto text-center justify-center min-h-[44px] py-2.5 px-5"
+        >
+          Xem sản phẩm →
+        </Button>
       </div>
     </div>
   );

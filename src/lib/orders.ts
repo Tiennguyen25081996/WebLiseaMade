@@ -127,6 +127,30 @@ export function updateOrderStatus(
   }
 }
 
+export function updateOrderShipping(
+  code: string,
+  shipping: { trackingCode?: string; carrier?: PlacedOrder["carrier"] },
+  storage: Storage | undefined = safeStorage(),
+): boolean {
+  if (!storage) return false;
+  try {
+    const target = code.trim().toUpperCase();
+    const orders = readOrders(storage);
+    const index = orders.findIndex((o) => o.code.toUpperCase() === target);
+    if (index === -1) return false;
+    orders[index] = {
+      ...orders[index],
+      trackingCode: shipping.trackingCode?.trim() || undefined,
+      carrier: shipping.carrier || "spx",
+    };
+    storage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(orders));
+    dispatchOrdersUpdate();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** storage có thể bị chặn (Safari private mode) -> luôn truy cập qua try/catch. */
 export function safeStorage(): Storage | undefined {
   try {
