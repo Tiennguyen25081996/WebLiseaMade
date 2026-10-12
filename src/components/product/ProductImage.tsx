@@ -62,6 +62,7 @@ export function ProductImage({
         alt={alt}
         loading={priority ? "eager" : "lazy"}
         decoding="async"
+        referrerPolicy="no-referrer"
         onError={() => setFailed(true)}
         className={`h-full w-full object-cover ${className}`}
       />

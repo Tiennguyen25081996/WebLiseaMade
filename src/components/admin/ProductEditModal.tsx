@@ -356,6 +356,7 @@ export function ProductEditModal({
                           <img
                             src={directSrc}
                             alt={`Preview ${idx + 1}`}
+                            referrerPolicy="no-referrer"
                             className="h-14 w-14 object-cover rounded-hair bg-sand-200"
                             onError={(e) => {
                               (e.target as HTMLImageElement).src = "/figma-images/catalog-1.png";

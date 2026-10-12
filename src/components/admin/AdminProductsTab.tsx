@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import type { Product, Category } from "@/types";
 import { formatVnd } from "@/lib/format";
 import { SearchIcon, TrashIcon } from "@/components/ui/icons";
+import { normalizeGoogleDriveUrl } from "@/lib/media-api";
 
 interface AdminProductsTabProps {
   products: Product[];
@@ -84,8 +85,9 @@ export function AdminProductsTab({
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-3">
                         <img
-                          src={p.images[0] || "/figma-images/catalog-1.png"}
+                          src={normalizeGoogleDriveUrl(p.images[0]) || "/figma-images/catalog-1.png"}
                           alt={p.name}
+                          referrerPolicy="no-referrer"
                           className="h-10 w-10 rounded-hair object-cover bg-sand-200"
                           onError={(e) => {
                             (e.target as HTMLImageElement).src = "/figma-images/catalog-1.png";

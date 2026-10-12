@@ -345,6 +345,7 @@ export function AdminHomeSettingsTab({
                   <img
                     src={normalizeGoogleDriveUrl(form.heroImage)}
                     alt="Preview Hero"
+                    referrerPolicy="no-referrer"
                     className="h-full w-full object-cover"
                     onError={(e) => {
                       (e.target as HTMLImageElement).src = "/figma-images/hero.png";
@@ -435,6 +436,7 @@ export function AdminHomeSettingsTab({
                     <img
                       src={normalizeGoogleDriveUrl(item.src)}
                       alt={item.caption}
+                      referrerPolicy="no-referrer"
                       className="h-full w-full object-cover"
                       onError={(e) => {
                         (e.target as HTMLImageElement).src = "/figma-images/lifestyle-1.png";
@@ -539,6 +541,7 @@ export function AdminHomeSettingsTab({
                     <img
                       src={normalizeGoogleDriveUrl(item.src)}
                       alt={item.caption}
+                      referrerPolicy="no-referrer"
                       className="h-full w-full object-cover"
                       onError={(e) => {
                         (e.target as HTMLImageElement).src = "/figma-images/lookbook-1.png";
@@ -699,6 +702,7 @@ export function AdminHomeSettingsTab({
                   <img
                     src={normalizeGoogleDriveUrl(form.brandStoryImage)}
                     alt="Preview Brand Story"
+                    referrerPolicy="no-referrer"
                     className="h-full w-full object-cover"
                     onError={(e) => {
                       (e.target as HTMLImageElement).src = "/figma-images/brand-story.png";
