@@ -93,6 +93,10 @@ export interface PlacedOrder {
   info: CheckoutInfo;
   /** Trạng thái đơn hàng quản lý trong Admin */
   status?: OrderStatus;
+  /** Mã vận đơn đối tác giao hàng (ví dụ: SPXVN0123456789) */
+  trackingCode?: string;
+  /** Đơn vị vận chuyển (mặc định: spx) */
+  carrier?: "spx" | "ghn" | "ghtk" | "viettel" | "other";
 }
 
 export type SortKey = "featured" | "price-asc" | "price-desc" | "rating";

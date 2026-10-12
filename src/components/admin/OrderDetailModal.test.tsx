@@ -80,4 +80,28 @@ describe("OrderDetailModal", () => {
     fireEvent.click(bottomCloseBtn);
     expect(onClose).toHaveBeenCalledTimes(2);
   });
+
+  it("gọi onUpdateShipping khi nhập mã vận đơn SPX và bấm Lưu mã vận đơn", () => {
+    const onClose = vi.fn();
+    const onUpdateShipping = vi.fn();
+    render(
+      <OrderDetailModal
+        order={mockOrder}
+        onClose={onClose}
+        onUpdateShipping={onUpdateShipping}
+      />
+    );
+
+    const input = screen.getByPlaceholderText(/VD: SPXVN.../i);
+    fireEvent.change(input, { target: { value: "SPXVN012345678" } });
+
+    const saveBtn = screen.getByRole("button", { name: /Lưu mã vận đơn/i });
+    fireEvent.click(saveBtn);
+
+    expect(onUpdateShipping).toHaveBeenCalledWith("LM-MODAL99", {
+      trackingCode: "SPXVN012345678",
+      carrier: "spx",
+    });
+    expect(screen.getByText("Đã lưu ✓")).toBeInTheDocument();
+  });
 });
