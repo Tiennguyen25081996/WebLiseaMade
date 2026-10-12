@@ -2,13 +2,67 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import AdminBoardPage from "./AdminBoardPage";
+import { loginAdmin } from "@/lib/admin-auth";
 
 describe("AdminBoardPage", () => {
   beforeEach(() => {
     localStorage.clear();
+    sessionStorage.clear();
   });
 
-  it("render tiêu đề quản trị và các thẻ thống kê", () => {
+  it("hiển thị màn hình đăng nhập khi chưa có phiên đăng nhập", () => {
+    render(
+      <MemoryRouter>
+        <AdminBoardPage />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText("Đăng nhập Quản Trị Viên")).toBeInTheDocument();
+    expect(screen.getByLabelText("Tên đăng nhập")).toBeInTheDocument();
+    expect(screen.getByLabelText("Mật khẩu")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Đăng nhập hệ thống" })).toBeInTheDocument();
+  });
+
+  it("báo lỗi khi nhập sai tài khoản hoặc mật khẩu trên form đăng nhập", () => {
+    render(
+      <MemoryRouter>
+        <AdminBoardPage />
+      </MemoryRouter>
+    );
+
+    const userInput = screen.getByLabelText("Tên đăng nhập");
+    const passInput = screen.getByLabelText("Mật khẩu");
+    const submitBtn = screen.getByRole("button", { name: "Đăng nhập hệ thống" });
+
+    fireEvent.change(userInput, { target: { value: "admin" } });
+    fireEvent.change(passInput, { target: { value: "sai_mat_khau" } });
+    fireEvent.click(submitBtn);
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Tên đăng nhập hoặc mật khẩu không chính xác.");
+  });
+
+  it("cho phép đăng nhập nhanh qua nút tài khoản mẫu Super Admin", async () => {
+    render(
+      <MemoryRouter>
+        <AdminBoardPage />
+      </MemoryRouter>
+    );
+
+    const demoBtn = screen.getByRole("button", { name: /Super Admin: admin \/ admin123/ });
+    fireEvent.click(demoBtn);
+
+    const submitBtn = screen.getByRole("button", { name: "Đăng nhập hệ thống" });
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText("Quản trị LiseaMade")).toBeInTheDocument();
+      expect(screen.getByText("Admin Console")).toBeInTheDocument();
+    });
+  });
+
+  it("render tiêu đề quản trị và các thẻ thống kê khi đã đăng nhập", () => {
+    loginAdmin("admin", "admin123", true);
+
     render(
       <MemoryRouter>
         <AdminBoardPage />
@@ -16,12 +70,30 @@ describe("AdminBoardPage", () => {
     );
 
     expect(screen.getByText("Quản trị LiseaMade")).toBeInTheDocument();
-    expect(screen.getByText("Sản phẩm")).toBeInTheDocument();
-    expect(screen.getByText("Loại sản phẩm")).toBeInTheDocument();
-    expect(screen.getByText("Sự kiện giảm giá")).toBeInTheDocument();
+    expect(screen.getByText("Tổng sản phẩm")).toBeInTheDocument();
+    expect(screen.getByText("Phân loại nhóm hàng")).toBeInTheDocument();
+    expect(screen.getByText("Khuyến mãi kích hoạt")).toBeInTheDocument();
+    expect(screen.getByText("Đơn hàng & Doanh thu")).toBeInTheDocument();
+  });
+
+  it("chuyển tab sang Sản phẩm và hiển thị nút thêm sản phẩm", () => {
+    loginAdmin("admin", "admin123", true);
+
+    render(
+      <MemoryRouter>
+        <AdminBoardPage />
+      </MemoryRouter>
+    );
+
+    const prodTabButton = screen.getByRole("button", { name: /Sản phẩm \(/ });
+    fireEvent.click(prodTabButton);
+
+    expect(screen.getByRole("button", { name: "+ Thêm sản phẩm" })).toBeInTheDocument();
   });
 
   it("chuyển tab sang Loại sản phẩm và hiển thị nút thêm loại sản phẩm", () => {
+    loginAdmin("admin", "admin123", true);
+
     render(
       <MemoryRouter>
         <AdminBoardPage />
@@ -36,6 +108,8 @@ describe("AdminBoardPage", () => {
   });
 
   it("chuyển tab sang Sự kiện giảm giá và hiển thị danh sách voucher", () => {
+    loginAdmin("admin", "admin123", true);
+
     render(
       <MemoryRouter>
         <AdminBoardPage />
@@ -50,11 +124,16 @@ describe("AdminBoardPage", () => {
   });
 
   it("mở modal thêm sản phẩm khi click + Thêm sản phẩm", () => {
+    loginAdmin("admin", "admin123", true);
+
     render(
       <MemoryRouter>
         <AdminBoardPage />
       </MemoryRouter>
     );
+
+    const prodTabButton = screen.getByRole("button", { name: /Sản phẩm \(/ });
+    fireEvent.click(prodTabButton);
 
     const addProductBtn = screen.getByRole("button", { name: "+ Thêm sản phẩm" });
     fireEvent.click(addProductBtn);
@@ -64,6 +143,8 @@ describe("AdminBoardPage", () => {
   });
 
   it("chuyển tab sang Ảnh Cloudflare (Media) và hiển thị khu vực tải ảnh", async () => {
+    loginAdmin("admin", "admin123", true);
+
     render(
       <MemoryRouter>
         <AdminBoardPage />
@@ -83,11 +164,16 @@ describe("AdminBoardPage", () => {
   });
 
   it("mở modal Cloudflare Media Picker từ form thêm sản phẩm", async () => {
+    loginAdmin("admin", "admin123", true);
+
     render(
       <MemoryRouter>
         <AdminBoardPage />
       </MemoryRouter>
     );
+
+    const prodTabButton = screen.getByRole("button", { name: /Sản phẩm \(/ });
+    fireEvent.click(prodTabButton);
 
     const addProductBtn = screen.getByRole("button", { name: "+ Thêm sản phẩm" });
     fireEvent.click(addProductBtn);
@@ -105,11 +191,16 @@ describe("AdminBoardPage", () => {
   });
 
   it("mở modal sửa sản phẩm, đổi link ảnh và bấm Lưu thay đổi thành công", async () => {
+    loginAdmin("admin", "admin123", true);
+
     render(
       <MemoryRouter initialEntries={["/admin"]}>
         <AdminBoardPage />
       </MemoryRouter>
     );
+
+    const prodTabButton = screen.getByRole("button", { name: /Sản phẩm \(/ });
+    fireEvent.click(prodTabButton);
 
     // Bấm nút sửa của sản phẩm đầu tiên
     const editBtns = screen.getAllByRole("button", { name: "Sửa" });
@@ -133,5 +224,21 @@ describe("AdminBoardPage", () => {
 
     // Thông báo toast thành công xuất hiện
     expect(screen.getByText("Đã cập nhật sản phẩm thành công!")).toBeInTheDocument();
+  });
+
+  it("chuyển sang tab Đơn hàng và hiển thị bộ lọc đơn", () => {
+    loginAdmin("admin", "admin123", true);
+
+    render(
+      <MemoryRouter>
+        <AdminBoardPage />
+      </MemoryRouter>
+    );
+
+    const ordersTabBtn = screen.getByRole("button", { name: /Đơn hàng \(/ });
+    fireEvent.click(ordersTabBtn);
+
+    expect(screen.getByPlaceholderText(/Tìm đơn theo mã, tên khách/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Làm mới đơn/ })).toBeInTheDocument();
   });
 });

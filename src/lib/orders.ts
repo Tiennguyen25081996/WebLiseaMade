@@ -87,6 +87,25 @@ export function findOrderByCode(
   return readOrders(storage).find((o) => o.code.toUpperCase() === target);
 }
 
+export function updateOrderStatus(
+  code: string,
+  newStatus: PlacedOrder["status"],
+  storage: Storage | undefined = safeStorage(),
+): boolean {
+  if (!storage) return false;
+  try {
+    const target = code.trim().toUpperCase();
+    const orders = readOrders(storage);
+    const index = orders.findIndex((o) => o.code.toUpperCase() === target);
+    if (index === -1) return false;
+    orders[index] = { ...orders[index], status: newStatus };
+    storage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(orders));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** storage có thể bị chặn (Safari private mode) -> luôn truy cập qua try/catch. */
 export function safeStorage(): Storage | undefined {
   try {

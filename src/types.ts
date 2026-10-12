@@ -81,6 +81,8 @@ export interface CheckoutInfo {
   paymentMethod: PaymentMethod;
 }
 
+export type OrderStatus = "pending" | "processing" | "shipping" | "delivered" | "cancelled";
+
 export interface PlacedOrder {
   /** Mã đơn hiển thị cho khách, ví dụ "LM-8F3K2Q". */
   code: string;
@@ -89,6 +91,8 @@ export interface PlacedOrder {
   lines: CartLineDetailed[];
   totals: Totals;
   info: CheckoutInfo;
+  /** Trạng thái đơn hàng quản lý trong Admin */
+  status?: OrderStatus;
 }
 
 export type SortKey = "featured" | "price-asc" | "price-desc" | "rating";

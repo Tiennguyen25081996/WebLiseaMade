@@ -1,10 +1,19 @@
 import { useState, useMemo } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { useAdminAuth } from "@/lib/admin-auth";
 import {
   useAdminStore,
   type DiscountEvent,
 } from "@/lib/admin-store";
-import type { Category, CategoryId, Product, ProductVariant } from "@/types";
+import { readOrders, updateOrderStatus } from "@/lib/orders";
+import type {
+  Category,
+  CategoryId,
+  Product,
+  ProductVariant,
+  PlacedOrder,
+  OrderStatus,
+} from "@/types";
 import { formatVnd } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
 import {
@@ -15,19 +24,105 @@ import {
   SparkleIcon,
   PackageIcon,
   UploadIcon,
+  LockIcon,
+  LogoutIcon,
+  UserIcon,
+  EyeIcon,
+  EyeOffIcon,
+  ClipboardListIcon,
 } from "@/components/ui/icons";
 import { CloudflareImageUploader } from "@/components/admin/CloudflareImageUploader";
 
-type AdminTab = "products" | "categories" | "discounts" | "media";
+type AdminTab = "overview" | "products" | "categories" | "discounts" | "media" | "orders";
 
 const DEFAULT_SIZES = ["S", "M", "L", "XL", "Free size"];
+
+const ORDER_STATUS_LABELS: Record<OrderStatus, { label: string; color: string }> = {
+  pending: { label: "Chờ xác nhận", color: "bg-amber-100 text-amber-800 border-amber-300" },
+  processing: { label: "Đang xử lý", color: "bg-blue-100 text-blue-800 border-blue-300" },
+  shipping: { label: "Đang giao hàng", color: "bg-purple-100 text-purple-800 border-purple-300" },
+  delivered: { label: "Đã hoàn thành", color: "bg-green-100 text-green-800 border-green-300" },
+  cancelled: { label: "Đã hủy đơn", color: "bg-coral-100 text-coral-800 border-coral-300" },
+};
 
 export default function AdminBoardPage() {
   const location = useLocation();
   const initialTab: AdminTab =
     location.pathname.includes("media") || location.pathname.includes("upload")
       ? "media"
-      : "products";
+      : location.pathname.includes("orders")
+        ? "orders"
+        : "overview";
+
+  // Auth state
+  const { isAuthenticated, user, login, logout } = useAdminAuth();
+  const [loginForm, setLoginForm] = useState({
+    username: "",
+    password: "",
+    rememberMe: true,
+  });
+  const [showPassword, setShowPassword] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  // Orders state
+  const [orders, setOrders] = useState<PlacedOrder[]>(() => readOrders());
+  const [orderSearchQuery, setOrderSearchQuery] = useState("");
+  const [orderStatusFilter, setOrderStatusFilter] = useState<string>("all");
+  const [viewingOrder, setViewingOrder] = useState<PlacedOrder | null>(null);
+
+  const loadOrders = () => {
+    setOrders(readOrders());
+  };
+
+  const handleUpdateOrderStatus = (code: string, newStatus: OrderStatus) => {
+    const ok = updateOrderStatus(code, newStatus);
+    if (ok) {
+      loadOrders();
+      showToast(`Đã cập nhật trạng thái đơn ${code}!`);
+    }
+  };
+
+  const filteredOrders = useMemo(() => {
+    return orders.filter((o) => {
+      const q = orderSearchQuery.toLowerCase();
+      const matchQ =
+        o.code.toLowerCase().includes(q) ||
+        o.info.fullName.toLowerCase().includes(q) ||
+        o.info.phone.includes(q);
+      const currentStatus = o.status ?? "pending";
+      const matchStatus =
+        orderStatusFilter === "all" || currentStatus === orderStatusFilter;
+      return matchQ && matchStatus;
+    });
+  }, [orders, orderSearchQuery, orderStatusFilter]);
+
+  const handleLoginSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoggingIn(true);
+    setLoginError(null);
+
+    const result = login(loginForm.username, loginForm.password, loginForm.rememberMe);
+    if (!result.success) {
+      setLoginError(result.error ?? "Đăng nhập thất bại.");
+      setIsLoggingIn(false);
+    } else {
+      setIsLoggingIn(false);
+      showToast(`Xin chào, ${result.user?.name}!`);
+    }
+  };
+
+  const handleLogout = () => {
+    if (window.confirm("Bạn có chắc chắn muốn đăng xuất khỏi hệ thống quản trị?")) {
+      logout();
+      showToast("Đã đăng xuất thành công!");
+    }
+  };
+
+  const fillDemoAccount = (u: string, p: string) => {
+    setLoginForm((prev) => ({ ...prev, username: u, password: p }));
+    setLoginError(null);
+  };
 
   const {
     products,
@@ -304,6 +399,137 @@ export default function AdminBoardPage() {
     setDeleteTarget(null);
   };
 
+  if (!isAuthenticated) {
+    return (
+      <div className="container-page min-h-[80vh] flex items-center justify-center py-12">
+        <div className="w-full max-w-md rounded-hair border border-sand-300 bg-sand-50 p-8 shadow-xl animate-reveal-up">
+          <div className="text-center">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-lagoon-100 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-lagoon-800">
+              <LockIcon className="h-3.5 w-3.5" />
+              Bảo mật hệ thống
+            </span>
+            <h1 className="mt-4 font-display text-2xl text-ink-900">
+              Đăng nhập Quản Trị Viên
+            </h1>
+            <p className="mt-2 text-xs text-ink-600">
+              Truy cập bảng điều khiển sản phẩm, danh mục, khuyến mãi và đơn hàng LiseaMade.
+            </p>
+          </div>
+
+          {loginError && (
+            <div
+              role="alert"
+              className="mt-6 rounded-hair border border-coral-300 bg-coral-50 p-3 text-xs font-medium text-coral-800 animate-fade-in"
+            >
+              {loginError}
+            </div>
+          )}
+
+          <form onSubmit={handleLoginSubmit} className="mt-6 space-y-4">
+            <div>
+              <label htmlFor="admin-username" className="block text-xs font-medium text-ink-800 mb-1">
+                Tên đăng nhập
+              </label>
+              <div className="relative">
+                <input
+                  id="admin-username"
+                  type="text"
+                  required
+                  autoComplete="username"
+                  value={loginForm.username}
+                  onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
+                  placeholder="admin"
+                  className="w-full rounded-hair border border-sand-300 bg-sand-50 px-3 py-2.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-ink-900 focus:outline-none"
+                />
+                <UserIcon className="absolute right-3 top-3 h-4 w-4 text-ink-400 pointer-events-none" />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="admin-password" className="block text-xs font-medium text-ink-800 mb-1">
+                Mật khẩu
+              </label>
+              <div className="relative">
+                <input
+                  id="admin-password"
+                  type={showPassword ? "text" : "password"}
+                  required
+                  autoComplete="current-password"
+                  value={loginForm.password}
+                  onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+                  placeholder="••••••••"
+                  className="w-full rounded-hair border border-sand-300 bg-sand-50 px-3 py-2.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-ink-900 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-3 text-ink-400 hover:text-ink-800"
+                  aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                >
+                  {showPassword ? <EyeOffIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-1">
+              <label className="flex items-center gap-2 cursor-pointer text-xs text-ink-700">
+                <input
+                  type="checkbox"
+                  checked={loginForm.rememberMe}
+                  onChange={(e) => setLoginForm({ ...loginForm, rememberMe: e.target.checked })}
+                  className="h-4 w-4 rounded accent-ink-900"
+                />
+                <span>Ghi nhớ phiên đăng nhập</span>
+              </label>
+            </div>
+
+            <Button
+              variant="primary"
+              size="md"
+              type="submit"
+              disabled={isLoggingIn}
+              className="w-full justify-center"
+            >
+              {isLoggingIn ? "Đang xác thực..." : "Đăng nhập hệ thống"}
+            </Button>
+          </form>
+
+          {/* Quick Demo Credentials */}
+          <div className="mt-6 border-t border-sand-200 pt-4">
+            <p className="text-2xs font-medium uppercase tracking-wider text-ink-500 mb-2">
+              Tài khoản quản trị mẫu:
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => fillDemoAccount("admin", "admin123")}
+                className="tap-feedback rounded-hair border border-sand-300 bg-sand-100 px-2.5 py-1.5 text-2xs font-medium text-ink-700 hover:bg-sand-200 transition-colors"
+              >
+                Super Admin: <span className="font-mono font-bold text-ink-900">admin / admin123</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => fillDemoAccount("lisea", "hawaii2026")}
+                className="tap-feedback rounded-hair border border-sand-300 bg-sand-100 px-2.5 py-1.5 text-2xs font-medium text-ink-700 hover:bg-sand-200 transition-colors"
+              >
+                Manager: <span className="font-mono font-bold text-ink-900">lisea / hawaii2026</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-6 text-center">
+            <Link
+              to="/san-pham"
+              className="text-xs text-ink-600 hover:text-ink-900 underline-reveal"
+            >
+              ← Quay lại cửa hàng LiseaMade
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container-page pb-20 pt-6">
       {/* Toast Alert */}
@@ -318,141 +544,153 @@ export default function AdminBoardPage() {
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-sand-200 pb-6">
+      {/* Header with Admin Info & Quick Actions */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-sand-200 pb-6">
         <div>
           <div className="flex items-center gap-2">
             <span className="text-eyebrow text-lagoon-600 font-semibold tracking-wider uppercase">
               Bảng điều khiển
             </span>
             <span className="rounded-full bg-lagoon-100 px-2.5 py-0.5 text-[11px] font-medium text-lagoon-800">
-              Admin v1.0
+              Admin Console
             </span>
           </div>
           <h1 className="mt-1 font-display text-display-md text-ink-900">
             Quản trị LiseaMade
           </h1>
           <p className="mt-1 text-xs text-ink-500">
-            Quản lý trực tiếp danh mục sản phẩm, nhóm hàng và các chương trình ưu đãi.
+            Xin chào <strong className="text-ink-800">{user?.name}</strong> ({user?.role}) · Quản trị toàn diện sản phẩm, phân loại, khuyến mãi và đơn đặt hàng.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2 rounded-hair border border-sand-300 bg-sand-100 px-3 py-1.5 text-xs text-ink-700">
+            <UserIcon className="h-3.5 w-3.5 text-ink-500" />
+            <span className="font-medium text-ink-900">{user?.username}</span>
+          </div>
           <Link
             to="/san-pham"
-            className="rounded-hair border border-sand-300 px-4 py-2 text-xs font-medium text-ink-700 hover:border-ink-900 hover:text-ink-900 transition-colors"
+            className="rounded-hair border border-sand-300 px-3 py-2 text-xs font-medium text-ink-700 hover:border-ink-900 hover:text-ink-900 transition-colors"
           >
             Xem Storefront →
           </Link>
           <button
             type="button"
-            onClick={() => {
-              if (window.confirm("Bạn có chắc chắn muốn khôi phục toàn bộ danh mục và sản phẩm mẫu về ban đầu?")) {
-                resetToDefaults();
-                showToast("Đã khôi phục dữ liệu gốc thành công!");
-              }
-            }}
-            className="rounded-hair bg-sand-200 px-4 py-2 text-xs font-medium text-ink-700 hover:bg-coral-100 hover:text-coral-800 transition-colors"
+            onClick={handleLogout}
+            className="rounded-hair border border-coral-200 bg-coral-50 px-3 py-2 text-xs font-medium text-coral-800 hover:bg-coral-100 transition-colors flex items-center gap-1.5"
           >
-            Khôi phục mẫu
+            <LogoutIcon className="h-3.5 w-3.5" />
+            Đăng xuất
           </button>
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="rounded-hair border border-sand-300 bg-sand-100 p-5">
-          <div className="flex items-center justify-between text-ink-500 text-xs">
-            <span>Sản phẩm</span>
-            <PackageIcon className="h-4 w-4 text-lagoon-600" />
-          </div>
-          <div className="mt-2 text-3xl font-display text-ink-900">{products.length}</div>
-          <div className="mt-1 text-2xs text-ink-500">
-            {products.filter((p) => p.variants.some((v) => v.inStock)).length} sản phẩm còn hàng
-          </div>
-        </div>
-
-        <div className="rounded-hair border border-sand-300 bg-sand-100 p-5">
-          <div className="flex items-center justify-between text-ink-500 text-xs">
-            <span>Loại sản phẩm</span>
-            <span className="text-lagoon-700 text-xs font-bold font-sans">#</span>
-          </div>
-          <div className="mt-2 text-3xl font-display text-ink-900">{categories.length}</div>
-          <div className="mt-1 text-2xs text-ink-500">Nhóm phân loại hàng trên web</div>
-        </div>
-
-        <div className="rounded-hair border border-sand-300 bg-sand-100 p-5">
-          <div className="flex items-center justify-between text-ink-500 text-xs">
-            <span>Sự kiện giảm giá</span>
-            <SparkleIcon className="h-4 w-4 text-coral-600" />
-          </div>
-          <div className="mt-2 text-3xl font-display text-ink-900">
-            {discounts.filter((d) => d.isActive).length} / {discounts.length}
-          </div>
-          <div className="mt-1 text-2xs text-ink-500">Chương trình khuyến mãi đang chạy</div>
-        </div>
-
-        <div className="rounded-hair border border-sand-300 bg-sand-100 p-5">
-          <div className="flex items-center justify-between text-ink-500 text-xs">
-            <span>Cloudflare Media</span>
-            <UploadIcon className="h-4 w-4 text-lagoon-700" />
-          </div>
-          <div className="mt-2 text-3xl font-display text-ink-900">Cloud</div>
-          <div className="mt-1 text-2xs text-ink-500">Lưu trữ ảnh D1 / Images CDN</div>
-        </div>
-      </div>
-
-      {/* Navigation Tabs */}
-      <div className="mt-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-sand-200 pb-3">
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 scrollbar-hide">
+      {/* Navigation Menus (Separate Action Menus) */}
+      <div className="mt-8 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-sand-200 pb-3">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 lg:pb-0 scrollbar-hide">
           <button
             type="button"
-            onClick={() => setCurrentTab("products")}
-            className={`rounded-hair px-4 py-2 text-xs font-medium transition-all ${
-              currentTab === "products"
-                ? "bg-ink-900 text-sand-50"
+            onClick={() => setCurrentTab("overview")}
+            className={`tap-feedback rounded-hair px-4 py-2 text-xs font-medium transition-all flex items-center gap-1.5 ${
+              currentTab === "overview"
+                ? "bg-ink-900 text-sand-50 shadow-2xs"
                 : "bg-sand-100 text-ink-700 hover:bg-sand-200"
             }`}
           >
-            Sản phẩm ({products.length})
+            <span>📊</span>
+            <span>Tổng quan</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setCurrentTab("products")}
+            className={`tap-feedback rounded-hair px-4 py-2 text-xs font-medium transition-all flex items-center gap-1.5 ${
+              currentTab === "products"
+                ? "bg-ink-900 text-sand-50 shadow-2xs"
+                : "bg-sand-100 text-ink-700 hover:bg-sand-200"
+            }`}
+          >
+            <PackageIcon className="h-3.5 w-3.5" />
+            <span>Sản phẩm ({products.length})</span>
           </button>
           <button
             type="button"
             onClick={() => setCurrentTab("categories")}
-            className={`rounded-hair px-4 py-2 text-xs font-medium transition-all ${
+            className={`tap-feedback rounded-hair px-4 py-2 text-xs font-medium transition-all flex items-center gap-1.5 ${
               currentTab === "categories"
-                ? "bg-ink-900 text-sand-50"
+                ? "bg-ink-900 text-sand-50 shadow-2xs"
                 : "bg-sand-100 text-ink-700 hover:bg-sand-200"
             }`}
           >
-            Loại sản phẩm ({categories.length})
+            <span className="font-bold">#</span>
+            <span>Loại sản phẩm ({categories.length})</span>
           </button>
           <button
             type="button"
             onClick={() => setCurrentTab("discounts")}
-            className={`rounded-hair px-4 py-2 text-xs font-medium transition-all ${
+            className={`tap-feedback rounded-hair px-4 py-2 text-xs font-medium transition-all flex items-center gap-1.5 ${
               currentTab === "discounts"
-                ? "bg-ink-900 text-sand-50"
+                ? "bg-ink-900 text-sand-50 shadow-2xs"
                 : "bg-sand-100 text-ink-700 hover:bg-sand-200"
             }`}
           >
-            Sự kiện giảm giá ({discounts.length})
+            <SparkleIcon className="h-3.5 w-3.5" />
+            <span>Sự kiện giảm giá ({discounts.length})</span>
           </button>
           <button
             type="button"
             onClick={() => setCurrentTab("media")}
-            className={`rounded-hair px-4 py-2 text-xs font-medium transition-all ${
+            className={`tap-feedback rounded-hair px-4 py-2 text-xs font-medium transition-all flex items-center gap-1.5 ${
               currentTab === "media"
-                ? "bg-ink-900 text-sand-50"
+                ? "bg-ink-900 text-sand-50 shadow-2xs"
                 : "bg-sand-100 text-ink-700 hover:bg-sand-200"
             }`}
           >
-            Ảnh Cloudflare (Media)
+            <UploadIcon className="h-3.5 w-3.5" />
+            <span>Ảnh Cloudflare</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setCurrentTab("orders")}
+            className={`tap-feedback rounded-hair px-4 py-2 text-xs font-medium transition-all flex items-center gap-1.5 ${
+              currentTab === "orders"
+                ? "bg-ink-900 text-sand-50 shadow-2xs"
+                : "bg-sand-100 text-ink-700 hover:bg-sand-200"
+            }`}
+          >
+            <ClipboardListIcon className="h-3.5 w-3.5" />
+            <span>Đơn hàng ({orders.length})</span>
           </button>
         </div>
 
-        {/* Tab Action Button */}
-        <div>
+        {/* Dedicated Action Menu Bar for Active Tab */}
+        <div className="flex items-center gap-2">
+          {currentTab === "overview" && (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  loadOrders();
+                  showToast("Đã làm mới dữ liệu thống kê!");
+                }}
+                className="tap-feedback rounded-hair border border-sand-300 bg-sand-100 px-3 py-1.5 text-xs font-medium text-ink-700 hover:bg-sand-200 transition-colors"
+              >
+                Làm mới số liệu
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm("Bạn có chắc chắn muốn khôi phục toàn bộ danh mục và sản phẩm mẫu về ban đầu?")) {
+                    resetToDefaults();
+                    showToast("Đã khôi phục dữ liệu gốc thành công!");
+                  }
+                }}
+                className="tap-feedback rounded-hair bg-coral-50 border border-coral-200 px-3 py-1.5 text-xs font-medium text-coral-800 hover:bg-coral-100 transition-colors"
+              >
+                Khôi phục mẫu
+              </button>
+            </div>
+          )}
+
           {currentTab === "products" && (
             <Button
               variant="primary"
@@ -463,6 +701,7 @@ export default function AdminBoardPage() {
               + Thêm sản phẩm
             </Button>
           )}
+
           {currentTab === "categories" && (
             <Button
               variant="primary"
@@ -473,6 +712,7 @@ export default function AdminBoardPage() {
               + Thêm loại sản phẩm
             </Button>
           )}
+
           {currentTab === "discounts" && (
             <Button
               variant="primary"
@@ -483,8 +723,187 @@ export default function AdminBoardPage() {
               + Thêm sự kiện giảm giá
             </Button>
           )}
+
+          {currentTab === "orders" && (
+            <button
+              type="button"
+              onClick={() => {
+                loadOrders();
+                showToast("Đã làm mới danh sách đơn hàng!");
+              }}
+              className="tap-feedback rounded-hair border border-sand-300 bg-sand-100 px-3 py-1.5 text-xs font-medium text-ink-700 hover:bg-sand-200 transition-colors flex items-center gap-1.5"
+            >
+              <span>↻ Làm mới đơn</span>
+            </button>
+          )}
         </div>
       </div>
+
+      {/* =========================================================================
+       * TAB 0: TỔNG QUAN HỆ THỐNG & BÁO CÁO (OVERVIEW)
+       * ========================================================================= */}
+      {currentTab === "overview" && (
+        <div className="mt-6 space-y-8 animate-fade-in">
+          {/* Key Metrics Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="rounded-hair border border-sand-300 bg-sand-100 p-5">
+              <div className="flex items-center justify-between text-ink-500 text-xs">
+                <span>Tổng sản phẩm</span>
+                <PackageIcon className="h-4 w-4 text-lagoon-600" />
+              </div>
+              <div className="mt-2 text-3xl font-display text-ink-900">{products.length}</div>
+              <div className="mt-1 text-2xs text-ink-500">
+                {products.filter((p) => p.variants.some((v) => v.inStock)).length} sản phẩm đang mở bán
+              </div>
+            </div>
+
+            <div className="rounded-hair border border-sand-300 bg-sand-100 p-5">
+              <div className="flex items-center justify-between text-ink-500 text-xs">
+                <span>Phân loại nhóm hàng</span>
+                <span className="text-lagoon-700 text-xs font-bold font-sans">#</span>
+              </div>
+              <div className="mt-2 text-3xl font-display text-ink-900">{categories.length}</div>
+              <div className="mt-1 text-2xs text-ink-500">Danh mục hiển thị trên storefront</div>
+            </div>
+
+            <div className="rounded-hair border border-sand-300 bg-sand-100 p-5">
+              <div className="flex items-center justify-between text-ink-500 text-xs">
+                <span>Khuyến mãi kích hoạt</span>
+                <SparkleIcon className="h-4 w-4 text-coral-600" />
+              </div>
+              <div className="mt-2 text-3xl font-display text-ink-900">
+                {discounts.filter((d) => d.isActive).length} / {discounts.length}
+              </div>
+              <div className="mt-1 text-2xs text-ink-500">Mã voucher đang áp dụng</div>
+            </div>
+
+            <div className="rounded-hair border border-sand-300 bg-sand-100 p-5">
+              <div className="flex items-center justify-between text-ink-500 text-xs">
+                <span>Đơn hàng & Doanh thu</span>
+                <ClipboardListIcon className="h-4 w-4 text-lagoon-700" />
+              </div>
+              <div className="mt-2 text-2xl font-display text-ink-900">
+                {formatVnd(orders.reduce((sum, o) => sum + (o.totals?.total ?? 0), 0))}
+              </div>
+              <div className="mt-1 text-2xs text-ink-500">{orders.length} đơn hàng được ghi nhận</div>
+            </div>
+          </div>
+
+          {/* Quick Action Cards */}
+          <div>
+            <h2 className="font-display text-base text-ink-900 mb-3">Thao tác nhanh theo chuyên mục</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setCurrentTab("products");
+                  openNewProductModal();
+                }}
+                className="tap-feedback flex items-center justify-between rounded-hair border border-sand-300 bg-sand-50 p-4 text-left hover:border-ink-900 transition-colors"
+              >
+                <div>
+                  <div className="font-medium text-xs text-ink-900">+ Thêm sản phẩm mới</div>
+                  <div className="text-2xs text-ink-500 mt-0.5">Tạo mới áo, đầm, phụ kiện có giá và ảnh</div>
+                </div>
+                <PackageIcon className="h-4 w-4 text-ink-400" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setCurrentTab("discounts");
+                  openNewDiscountModal();
+                }}
+                className="tap-feedback flex items-center justify-between rounded-hair border border-sand-300 bg-sand-50 p-4 text-left hover:border-ink-900 transition-colors"
+              >
+                <div>
+                  <div className="font-medium text-xs text-ink-900">+ Tạo mã giảm giá</div>
+                  <div className="text-2xs text-ink-500 mt-0.5">Thiết lập voucher phần trăm hoặc số tiền</div>
+                </div>
+                <SparkleIcon className="h-4 w-4 text-coral-600" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCurrentTab("media")}
+                className="tap-feedback flex items-center justify-between rounded-hair border border-sand-300 bg-sand-50 p-4 text-left hover:border-ink-900 transition-colors"
+              >
+                <div>
+                  <div className="font-medium text-xs text-ink-900">Tải ảnh Cloudflare</div>
+                  <div className="text-2xs text-ink-500 mt-0.5">Đồng bộ kho lưu trữ ảnh Media Hub</div>
+                </div>
+                <UploadIcon className="h-4 w-4 text-lagoon-600" />
+              </button>
+            </div>
+          </div>
+
+          {/* Recent Orders Overview */}
+          <div className="rounded-hair border border-sand-300 bg-sand-50 p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="font-display text-base text-ink-900">Đơn hàng mới nhất</h2>
+                <p className="text-2xs text-ink-500">Xem nhanh các đơn hàng gần đây từ khách mua trên web</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCurrentTab("orders")}
+                className="text-xs font-medium text-lagoon-700 hover:text-lagoon-900 underline-reveal"
+              >
+                Xem toàn bộ đơn ({orders.length}) →
+              </button>
+            </div>
+
+            {orders.length === 0 ? (
+              <div className="py-8 text-center text-xs text-ink-500">
+                Chưa có đơn hàng nào phát sinh trên hệ thống.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="border-b border-sand-200 text-ink-500 text-2xs uppercase">
+                    <tr>
+                      <th className="py-2.5 font-medium">Mã đơn</th>
+                      <th className="py-2.5 font-medium">Khách hàng</th>
+                      <th className="py-2.5 font-medium">Thời gian</th>
+                      <th className="py-2.5 font-medium">Tổng tiền</th>
+                      <th className="py-2.5 font-medium">Trạng thái</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-sand-200">
+                    {orders.slice(0, 5).map((o) => {
+                      const st = o.status ?? "pending";
+                      const meta = ORDER_STATUS_LABELS[st] ?? ORDER_STATUS_LABELS.pending;
+                      return (
+                        <tr key={o.code} className="hover:bg-sand-100/60 transition-colors">
+                          <td className="py-3 font-mono font-bold text-ink-900">{o.code}</td>
+                          <td className="py-3">
+                            <div className="font-medium text-ink-900">{o.info.fullName}</div>
+                            <div className="text-2xs text-ink-500">{o.info.phone}</div>
+                          </td>
+                          <td className="py-3 text-ink-600">
+                            {new Date(o.createdAt).toLocaleString("vi-VN", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </td>
+                          <td className="py-3 font-medium text-ink-900">{formatVnd(o.totals.total)}</td>
+                          <td className="py-3">
+                            <span className={`inline-block rounded-full border px-2 py-0.5 text-2xs font-medium ${meta.color}`}>
+                              {meta.label}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* =========================================================================
        * TAB 1: SẢN PHẨM (PRODUCTS)
@@ -778,8 +1197,121 @@ export default function AdminBoardPage() {
        * TAB 4: QUẢN LÝ ẢNH CLOUDFLARE (MEDIA HUB)
        * ========================================================================= */}
       {currentTab === "media" && (
-        <div className="mt-6">
+        <div className="mt-6 animate-fade-in">
           <CloudflareImageUploader />
+        </div>
+      )}
+
+      {/* =========================================================================
+       * TAB 5: QUẢN LÝ ĐƠN HÀNG (ORDERS)
+       * ========================================================================= */}
+      {currentTab === "orders" && (
+        <div className="mt-6 space-y-6 animate-fade-in">
+          {/* Filters Bar */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div className="relative flex-1">
+              <input
+                type="text"
+                placeholder="Tìm đơn theo mã, tên khách, hoặc số điện thoại..."
+                value={orderSearchQuery}
+                onChange={(e) => setOrderSearchQuery(e.target.value)}
+                className="w-full rounded-hair border border-sand-300 bg-sand-50 pl-9 pr-4 py-2 text-xs text-ink-900 focus:outline-none focus:border-ink-900"
+              />
+              <SearchIcon className="absolute left-3 top-2.5 h-3.5 w-3.5 text-ink-400" />
+            </div>
+
+            <div className="w-full sm:w-48">
+              <select
+                value={orderStatusFilter}
+                onChange={(e) => setOrderStatusFilter(e.target.value)}
+                className="w-full rounded-hair border border-sand-300 bg-sand-50 px-3 py-2 text-xs text-ink-900 focus:outline-none focus:border-ink-900"
+              >
+                <option value="all">Tất cả trạng thái</option>
+                <option value="pending">Chờ xác nhận</option>
+                <option value="processing">Đang xử lý</option>
+                <option value="shipping">Đang giao hàng</option>
+                <option value="delivered">Đã hoàn thành</option>
+                <option value="cancelled">Đã hủy đơn</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="rounded-hair border border-sand-300 bg-sand-50 overflow-hidden shadow-2xs">
+            {filteredOrders.length === 0 ? (
+              <div className="p-8 text-center text-xs text-ink-500">
+                Không tìm thấy đơn hàng nào phù hợp với điều kiện tìm kiếm.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="border-b border-sand-200 bg-sand-100 text-ink-500 text-2xs uppercase">
+                    <tr>
+                      <th className="px-4 py-3 font-medium">Mã đơn</th>
+                      <th className="px-4 py-3 font-medium">Khách hàng</th>
+                      <th className="px-4 py-3 font-medium">Thời gian</th>
+                      <th className="px-4 py-3 font-medium">Món / Giá trị</th>
+                      <th className="px-4 py-3 font-medium">Trạng thái</th>
+                      <th className="px-4 py-3 font-medium text-right">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-sand-200">
+                    {filteredOrders.map((order) => {
+                      const st = order.status ?? "pending";
+                      return (
+                        <tr key={order.code} className="hover:bg-sand-100/50 transition-colors">
+                          <td className="px-4 py-3">
+                            <span className="font-mono font-bold text-ink-900">{order.code}</span>
+                            <div className="text-2xs text-ink-500 mt-0.5 uppercase tracking-wider">
+                              {order.info.paymentMethod}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="font-medium text-ink-900">{order.info.fullName}</div>
+                            <div className="text-2xs text-ink-500">{order.info.phone}</div>
+                          </td>
+                          <td className="px-4 py-3 text-ink-600">
+                            {new Date(order.createdAt).toLocaleString("vi-VN", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="font-medium text-ink-900">{formatVnd(order.totals.total)}</div>
+                            <div className="text-2xs text-ink-500">{order.lines.length} món hàng</div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <select
+                              value={st}
+                              onChange={(e) => handleUpdateOrderStatus(order.code, e.target.value as OrderStatus)}
+                              className="rounded-hair border border-sand-300 bg-sand-50 px-2.5 py-1 text-2xs font-medium text-ink-900 focus:outline-none focus:border-ink-900"
+                            >
+                              <option value="pending">Chờ xác nhận</option>
+                              <option value="processing">Đang xử lý</option>
+                              <option value="shipping">Đang giao hàng</option>
+                              <option value="delivered">Đã hoàn thành</option>
+                              <option value="cancelled">Đã hủy đơn</option>
+                            </select>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <button
+                              type="button"
+                              onClick={() => setViewingOrder(order)}
+                              className="tap-feedback rounded-hair border border-sand-300 px-3 py-1 text-xs font-medium text-ink-700 hover:bg-sand-200 hover:text-ink-900 transition-colors"
+                            >
+                              Chi tiết
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -1305,7 +1837,7 @@ export default function AdminBoardPage() {
       )}
 
       {/* =========================================================================
-       * MODAL XÁC NHẬN XÓA (CONFIRM DELETE)
+       * MODAL 4: XÁC NHẬN XÓA (CONFIRM DELETE)
        * ========================================================================= */}
       {deleteTarget && (
         <div
@@ -1336,6 +1868,112 @@ export default function AdminBoardPage() {
                 onClick={handleConfirmDelete}
               >
                 Xóa ngay
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+       * MODAL 5: XEM CHI TIẾT ĐƠN HÀNG (ORDER DETAILS)
+       * ========================================================================= */}
+      {viewingOrder && (
+        <div
+          className="fixed inset-0 z-80 flex items-center justify-center bg-ink-900/60 p-4 backdrop-blur-xs"
+          onClick={() => setViewingOrder(null)}
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-hair bg-sand-50 p-6 shadow-2xl border border-sand-300 animate-reveal-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-sand-200 pb-3">
+              <div>
+                <span className="text-2xs font-semibold uppercase tracking-wider text-lagoon-700">
+                  Chi tiết đơn hàng
+                </span>
+                <h3 className="font-display text-lg text-ink-900">
+                  Mã: {viewingOrder.code}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingOrder(null)}
+                className="text-ink-500 hover:text-ink-900"
+              >
+                <CloseIcon className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Thông tin khách hàng */}
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-hair bg-sand-100 p-3 text-xs text-ink-800">
+              <div>
+                <span className="text-ink-500 block text-2xs uppercase">Người nhận</span>
+                <strong className="font-medium">{viewingOrder.info.fullName}</strong>
+                <div className="text-ink-600 mt-0.5">{viewingOrder.info.phone}</div>
+                {viewingOrder.info.email && <div className="text-ink-600">{viewingOrder.info.email}</div>}
+              </div>
+              <div>
+                <span className="text-ink-500 block text-2xs uppercase">Địa chỉ giao</span>
+                <div className="mt-0.5">{viewingOrder.info.address}</div>
+                {viewingOrder.info.note && (
+                  <div className="mt-1 text-2xs text-ink-500 italic">
+                    Ghi chú: "{viewingOrder.info.note}"
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Danh sách món hàng */}
+            <div className="mt-4">
+              <h4 className="text-xs font-semibold text-ink-800 uppercase tracking-wider mb-2">
+                Sản phẩm đặt mua ({viewingOrder.lines.length})
+              </h4>
+              <div className="divide-y divide-sand-200 border-t border-b border-sand-200 text-xs">
+                {viewingOrder.lines.map((line, idx) => (
+                  <div key={`${line.productId}-${line.variantId}-${idx}`} className="py-2.5 flex items-center justify-between gap-3">
+                    <div className="flex-1">
+                      <div className="font-medium text-ink-900">{line.product?.name ?? line.productId}</div>
+                      <div className="text-2xs text-ink-500">
+                        Phân loại: {line.variant?.label ?? "Tiêu chuẩn"} · Số lượng: {line.quantity}
+                      </div>
+                    </div>
+                    <div className="font-medium text-ink-900">
+                      {formatVnd(line.lineTotal ?? (line.unitPrice * line.quantity))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Tổng kết tiền */}
+            <div className="mt-4 space-y-1.5 text-xs text-ink-700">
+              <div className="flex justify-between">
+                <span>Tạm tính</span>
+                <span>{formatVnd(viewingOrder.totals.subtotal)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Phí vận chuyển</span>
+                <span>{formatVnd(viewingOrder.totals.shippingFee)}</span>
+              </div>
+              {viewingOrder.totals.discount > 0 && (
+                <div className="flex justify-between text-coral-700 font-medium">
+                  <span>Giảm giá</span>
+                  <span>-{formatVnd(viewingOrder.totals.discount)}</span>
+                </div>
+              )}
+              <div className="flex justify-between border-t border-sand-300 pt-2 text-sm font-bold text-ink-900">
+                <span>Tổng thanh toán</span>
+                <span>{formatVnd(viewingOrder.totals.total)}</span>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => setViewingOrder(null)}
+              >
+                Đóng
               </Button>
             </div>
           </div>
