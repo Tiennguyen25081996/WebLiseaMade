@@ -42,7 +42,7 @@ describe("AdminLoginForm", () => {
     expect(passInput.type).toBe("password");
   });
 
-  it("điền nhanh tài khoản demo khi bấm nút mẫu", () => {
+  it("hiển thị thông báo bảo mật thay vì tài khoản demo lộ mật khẩu", () => {
     const onSuccess = vi.fn();
     render(
       <MemoryRouter>
@@ -50,17 +50,15 @@ describe("AdminLoginForm", () => {
       </MemoryRouter>
     );
 
-    const demoBtn = screen.getByRole("button", { name: /Manager: lisea \/ hawaii2026/ });
-    fireEvent.click(demoBtn);
-
-    const userInput = screen.getByLabelText("Tên đăng nhập") as HTMLInputElement;
-    const passInput = screen.getByLabelText("Mật khẩu") as HTMLInputElement;
-
-    expect(userInput.value).toBe("lisea");
-    expect(passInput.value).toBe("hawaii2026");
+    expect(
+      screen.getByText(/Khu vực quản trị nội bộ bảo mật/i)
+    ).toBeInTheDocument();
+    // Đảm bảo không còn nút lộ mật khẩu trên màn hình
+    expect(screen.queryByText(/admin123/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/hawaii2026/)).not.toBeInTheDocument();
   });
 
-  it("gọi onSuccess khi đăng nhập hợp lệ", async () => {
+  it("gọi onSuccess khi đăng nhập hợp lệ với thông tin nhập từ form", async () => {
     const onSuccess = vi.fn();
     render(
       <MemoryRouter>
@@ -68,8 +66,10 @@ describe("AdminLoginForm", () => {
       </MemoryRouter>
     );
 
-    const demoBtn = screen.getByRole("button", { name: /Super Admin: admin \/ admin123/ });
-    fireEvent.click(demoBtn);
+    const userInput = screen.getByLabelText("Tên đăng nhập");
+    const passInput = screen.getByLabelText("Mật khẩu");
+    fireEvent.change(userInput, { target: { value: "admin" } });
+    fireEvent.change(passInput, { target: { value: "admin123" } });
 
     const submitBtn = screen.getByRole("button", { name: "Đăng nhập hệ thống" });
     fireEvent.click(submitBtn);

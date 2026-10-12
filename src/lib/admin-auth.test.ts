@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { getAdminSession, loginAdmin, logoutAdmin } from "./admin-auth";
+import {
+  getAdminSession,
+  loginAdmin,
+  logoutAdmin,
+  changeAdminPassword,
+} from "./admin-auth";
 
 describe("admin-auth", () => {
   beforeEach(() => {
@@ -77,5 +82,24 @@ describe("admin-auth", () => {
     const lockedRes = loginAdmin("admin", "admin123");
     expect(lockedRes.success).toBe(false);
     expect(lockedRes.error).toContain("Đăng nhập bị khóa tạm thời");
+  });
+
+  it("cho phép đổi mật khẩu quản trị viên an toàn", () => {
+    // Đổi mật khẩu admin sang pass mới
+    const failRes = changeAdminPassword("admin", "wrong_old_pass", "newSecret2026");
+    expect(failRes.success).toBe(false);
+    expect(failRes.error).toContain("Mật khẩu hiện tại không chính xác");
+
+    const successRes = changeAdminPassword("admin", "admin123", "newSecret2026");
+    expect(successRes.success).toBe(true);
+
+    // Đăng nhập bằng pass cũ thất bại
+    const loginOld = loginAdmin("admin", "admin123");
+    expect(loginOld.success).toBe(false);
+
+    // Đăng nhập bằng pass mới thành công
+    const loginNew = loginAdmin("admin", "newSecret2026");
+    expect(loginNew.success).toBe(true);
+    expect(loginNew.user?.username).toBe("admin");
   });
 });

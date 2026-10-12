@@ -43,15 +43,17 @@ describe("AdminBoardPage", () => {
     });
   });
 
-  it("cho phép đăng nhập nhanh qua nút tài khoản mẫu Super Admin", async () => {
+  it("cho phép đăng nhập thành công khi nhập đúng tài khoản quản trị", async () => {
     render(
       <MemoryRouter>
         <AdminBoardPage />
       </MemoryRouter>
     );
 
-    const demoBtn = screen.getByRole("button", { name: /Super Admin: admin \/ admin123/ });
-    fireEvent.click(demoBtn);
+    const userInput = screen.getByLabelText("Tên đăng nhập");
+    const passInput = screen.getByLabelText("Mật khẩu");
+    fireEvent.change(userInput, { target: { value: "admin" } });
+    fireEvent.change(passInput, { target: { value: "admin123" } });
 
     const submitBtn = screen.getByRole("button", { name: "Đăng nhập hệ thống" });
     fireEvent.click(submitBtn);

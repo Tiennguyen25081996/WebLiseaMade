@@ -16,6 +16,70 @@ import {
 } from "@/components/ui/icons";
 import { normalizeGoogleDriveUrl } from "@/lib/media-api";
 
+function FormattedBotText({ text }: { text: string }) {
+  const lines = text.split("\n");
+  return (
+    <div className="space-y-1">
+      {lines.map((line, lineIdx) => {
+        if (!line.trim()) {
+          return <div key={lineIdx} className="h-1" />;
+        }
+        const parts: React.ReactNode[] = [];
+        const regex = /\[([^\]]+)\]\(([^)]+)\)|\*\*([^*]+)\*\*/g;
+        let lastIdx = 0;
+        let match: RegExpExecArray | null;
+        let partIdx = 0;
+
+        while ((match = regex.exec(line)) !== null) {
+          if (match.index > lastIdx) {
+            parts.push(line.substring(lastIdx, match.index));
+          }
+          if (match[1] && match[2]) {
+            const label = match[1];
+            const url = match[2];
+            if (url.startsWith("http")) {
+              parts.push(
+                <a
+                  key={`link-${lineIdx}-${partIdx++}`}
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-semibold text-lagoon-700 underline hover:text-lagoon-900 inline-flex items-center gap-0.5"
+                >
+                  {label} ↗
+                </a>
+              );
+            } else {
+              parts.push(
+                <Link
+                  key={`link-${lineIdx}-${partIdx++}`}
+                  to={url}
+                  className="font-semibold text-lagoon-700 underline hover:text-lagoon-900"
+                >
+                  {label}
+                </Link>
+              );
+            }
+          } else if (match[3]) {
+            parts.push(
+              <strong key={`bold-${lineIdx}-${partIdx++}`} className="font-semibold text-ink-900">
+                {match[3]}
+              </strong>
+            );
+          }
+          lastIdx = regex.lastIndex;
+        }
+
+        if (lastIdx < line.length) {
+          parts.push(line.substring(lastIdx));
+        }
+
+        return <p key={lineIdx}>{parts}</p>;
+      })}
+    </div>
+  );
+}
+
 export function AiChatbotWidget() {
   const location = useLocation();
   const { products, chatbotConfig } = useAdminStore();
@@ -209,13 +273,13 @@ export function AiChatbotWidget() {
                   className={`flex flex-col ${isUser ? "items-end" : "items-start"} space-y-1`}
                 >
                   <div
-                    className={`max-w-[85%] rounded-hair px-3.5 py-2.5 leading-relaxed whitespace-pre-wrap ${
+                    className={`max-w-[85%] rounded-hair px-3.5 py-2.5 leading-relaxed ${
                       isUser
-                        ? "bg-lagoon-700 text-sand-50 shadow-2xs"
+                        ? "bg-lagoon-700 text-sand-50 shadow-2xs whitespace-pre-wrap"
                         : "bg-sand-50 text-ink-900 border border-sand-300 shadow-2xs"
                     }`}
                   >
-                    {msg.text}
+                    {isUser ? msg.text : <FormattedBotText text={msg.text} />}
                   </div>
 
                   {/* Sản phẩm gợi ý kèm trong phản hồi của bot */}
@@ -239,6 +303,7 @@ export function AiChatbotWidget() {
                               <img
                                 src={imgSrc}
                                 alt={p.name}
+                                referrerPolicy="no-referrer"
                                 className="h-11 w-11 rounded object-cover bg-sand-200 shrink-0"
                                 onError={(e) => {
                                   (e.target as HTMLImageElement).src = "/figma-images/catalog-1.png";

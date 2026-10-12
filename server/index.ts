@@ -168,16 +168,77 @@ async function hashIp(ip: string): Promise<string> {
   return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-function securityHeaders(origin = "*"): Record<string, string> {
+export function securityHeaders(origin = "*"): Record<string, string> {
   return {
     "Access-Control-Allow-Origin": origin,
-    "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Admin-Token, X-Requested-With",
     "Cross-Origin-Resource-Policy": "same-origin",
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
+    "X-XSS-Protection": "1; mode=block",
   };
+}
+
+// Bộ đệm Rate Limiter chống DoS / DDoS flood request
+interface RateLimitEntry {
+  count: number;
+  resetAt: number;
+}
+
+const rateLimitMap = new Map<string, RateLimitEntry>();
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const MAX_GENERAL_REQUESTS_PER_MINUTE = 120;
+const MAX_SENSITIVE_REQUESTS_PER_MINUTE = 40;
+
+export function checkRateLimit(ip: string, isSensitive = false): { allowed: boolean; retryAfter?: number } {
+  const now = Date.now();
+  const key = `${ip}:${isSensitive ? "sens" : "gen"}`;
+  const maxReqs = isSensitive ? MAX_SENSITIVE_REQUESTS_PER_MINUTE : MAX_GENERAL_REQUESTS_PER_MINUTE;
+
+  // Dọn dẹp định kỳ tránh rò rỉ bộ nhớ map
+  if (rateLimitMap.size > 2000) {
+    for (const [k, v] of rateLimitMap.entries()) {
+      if (v.resetAt < now) rateLimitMap.delete(k);
+    }
+  }
+
+  let entry = rateLimitMap.get(key);
+  if (!entry || entry.resetAt < now) {
+    entry = { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS };
+    rateLimitMap.set(key, entry);
+    return { allowed: true };
+  }
+
+  entry.count += 1;
+  if (entry.count > maxReqs) {
+    const retryAfter = Math.ceil((entry.resetAt - now) / 1000);
+    return { allowed: false, retryAfter };
+  }
+
+  return { allowed: true };
+}
+
+export function resetRateLimit(): void {
+  rateLimitMap.clear();
+}
+
+function getClientIp(request: Request): string {
+  return (
+    request.headers.get("cf-connecting-ip") ||
+    request.headers.get("x-real-ip") ||
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    "127.0.0.1"
+  );
+}
+
+function checkPayloadSize(request: Request, maxBytes: number): boolean {
+  const contentLength = request.headers.get("content-length");
+  if (contentLength && parseInt(contentLength, 10) > maxBytes) {
+    return false;
+  }
+  return true;
 }
 
 function getAllowedOrigin(request: Request, env: Env): string {
@@ -262,8 +323,31 @@ export default {
 
     // Các routes API
     if (url.pathname.startsWith("/api/")) {
-      const db = getDb(env);
+      const allowedOrigin = getAllowedOrigin(request, env);
       const apiJson = (data: unknown, status = 200) => jsonResponse(data, status, allowedOrigin);
+
+      // Phòng thủ DoS: Kiểm tra Rate Limiting theo IP
+      const clientIp = getClientIp(request);
+      const isSensitiveOp = request.method === "POST" || request.method === "PATCH" || request.method === "DELETE";
+      const rateResult = checkRateLimit(clientIp, isSensitiveOp);
+      if (!rateResult.allowed) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "Hệ thống phát hiện tần suất yêu cầu quá cao. Vui lòng thử lại sau giây lát.",
+          }),
+          {
+            status: 429,
+            headers: {
+              "Content-Type": "application/json; charset=utf-8",
+              "Retry-After": String(rateResult.retryAfter ?? 60),
+              ...securityHeaders(allowedOrigin),
+            },
+          }
+        );
+      }
+
+      const db = getDb(env);
 
       if (!db) {
         return apiJson(
@@ -279,6 +363,9 @@ export default {
 
         // POST /api/orders
         if (url.pathname === "/api/orders" && request.method === "POST") {
+          if (!checkPayloadSize(request, 150 * 1024)) {
+            return apiJson({ success: false, error: "Dung lượng dữ liệu đơn hàng vượt quá giới hạn cho phép." }, 413);
+          }
           const rawBody = await request.json().catch(() => null);
           if (!rawBody) {
             return apiJson({ success: false, error: "Dữ liệu JSON không hợp lệ" }, 400);
@@ -446,6 +533,9 @@ export default {
 
         // POST /api/events
         if (url.pathname === "/api/events" && request.method === "POST") {
+          if (!checkPayloadSize(request, 50 * 1024)) {
+            return apiJson({ success: false, error: "Dung lượng sự kiện vượt quá giới hạn." }, 413);
+          }
           const body = (await request.json().catch(() => null)) as Partial<CustomerEventInput> | null;
           if (!body || !body.eventType) {
             return apiJson({ success: false, error: "Thiếu trường eventType" }, 400);
@@ -476,6 +566,9 @@ export default {
 
         // POST /api/upload - Tải ảnh lên Cloudflare / D1 hoặc lưu link Google Drive
         if (url.pathname === "/api/upload" && request.method === "POST") {
+          if (!checkPayloadSize(request, 3.5 * 1024 * 1024)) {
+            return apiJson({ success: false, error: "Dung lượng tệp tải lên vượt quá giới hạn 3.5MB." }, 413);
+          }
           const contentType = request.headers.get("Content-Type") || "";
           let filename = "image.png";
           let mimeType = "image/png";
@@ -742,6 +835,9 @@ export default {
 
         // POST /api/site-settings - Cập nhật cài đặt website lên D1
         if (url.pathname === "/api/site-settings" && request.method === "POST") {
+          if (!checkPayloadSize(request, 500 * 1024)) {
+            return apiJson({ success: false, error: "Dung lượng cài đặt vượt quá giới hạn 500KB." }, 413);
+          }
           const body = (await request.json().catch(() => null)) as {
             key?: string;
             value?: unknown;

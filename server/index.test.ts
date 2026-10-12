@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import worker, { initDb, resetDbInit, type D1Database, type D1PreparedStatement, type Env } from "./index";
+import worker, {
+  initDb,
+  resetDbInit,
+  resetRateLimit,
+  type D1Database,
+  type D1PreparedStatement,
+  type Env,
+} from "./index";
 
 function createMockDb(): { db: D1Database; execCalls: string[]; batchCalls: D1PreparedStatement[][] } {
   const execCalls: string[] = [];
@@ -105,6 +112,7 @@ describe("server worker and D1 schema", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     resetDbInit();
+    resetRateLimit();
   });
 
   it("initDb executes single exec call with all CREATE TABLE/INDEX statements", async () => {
@@ -366,5 +374,59 @@ describe("server worker and D1 schema", () => {
     const req = new Request("http://localhost/api/unknown", { method: "GET" });
     const res = await worker.fetch(req, env);
     expect(res.status).toBe(404);
+  });
+
+  it("chống DoS: trả về 429 khi gửi request quá tần suất cho phép (Rate Limit)", async () => {
+    const { db } = createMockDb();
+    const env: Env = { DB: db };
+
+    // Giả lập spam 45 requests POST nhạy cảm từ cùng một IP
+    let lastRes: Response | null = null;
+    for (let i = 0; i < 45; i++) {
+      const req = new Request("http://localhost/api/site-settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "CF-Connecting-IP": "1.2.3.4" },
+        body: JSON.stringify({ key: "test", value: "ok" }),
+      });
+      lastRes = await worker.fetch(req, env);
+    }
+
+    expect(lastRes?.status).toBe(429);
+    expect(lastRes?.headers.get("Retry-After")).toBeDefined();
+    const json = (await lastRes?.json()) as { success: boolean; error: string };
+    expect(json.success).toBe(false);
+    expect(json.error).toContain("tần suất yêu cầu quá cao");
+  });
+
+  it("chống DoS/OOM: trả về 413 khi kích thước payload vượt ngưỡng cho phép", async () => {
+    const { db } = createMockDb();
+    const env: Env = { DB: db };
+
+    const req = new Request("http://localhost/api/orders", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Length": "200000", // > 150KB
+      },
+      body: JSON.stringify({ huge: "data" }),
+    });
+
+    const res = await worker.fetch(req, env);
+    expect(res.status).toBe(413);
+    const json = (await res.json()) as { success: boolean; error: string };
+    expect(json.success).toBe(false);
+    expect(json.error).toContain("vượt quá giới hạn");
+  });
+
+  it("bổ sung đầy đủ security headers chống clickjacking và MIME-sniffing", async () => {
+    const { db } = createMockDb();
+    const env: Env = { DB: db };
+    const req = new Request("http://localhost/api/site-settings", { method: "GET" });
+    const res = await worker.fetch(req, env);
+
+    expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    expect(res.headers.get("X-Frame-Options")).toBe("DENY");
+    expect(res.headers.get("X-XSS-Protection")).toBe("1; mode=block");
+    expect(res.headers.get("Referrer-Policy")).toBe("strict-origin-when-cross-origin");
   });
 });

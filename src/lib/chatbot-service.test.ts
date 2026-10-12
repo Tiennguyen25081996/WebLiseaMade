@@ -141,5 +141,27 @@ describe("chatbot-service", () => {
       expect(res.text).toContain("LiseaMade");
       expect(res.recommendedProducts?.length).toBeGreaterThan(0);
     });
+
+    it("truy vấn sản phẩm bán chạy nhất qua chatbot", async () => {
+      const res = await getAiChatbotResponse(
+        "cho mình xem sản phẩm bán chạy nhất",
+        [],
+        PRODUCTS,
+        DEFAULT_CHATBOT_CONFIG
+      );
+      expect(res.text).toContain("Sản Phẩm Bán Chạy Nhất");
+      expect(res.recommendedProducts?.length).toBeGreaterThan(0);
+    });
+
+    it("hỏi tình trạng đơn hàng chung chung thì hướng dẫn gửi mã đơn", async () => {
+      const res = await getAiChatbotResponse(
+        "kiểm tra tình trạng đơn hàng của tôi",
+        [],
+        PRODUCTS,
+        DEFAULT_CHATBOT_CONFIG
+      );
+      expect(res.text).toContain("Mã đơn hàng");
+      expect(res.text).toContain("LM-");
+    });
   });
 });

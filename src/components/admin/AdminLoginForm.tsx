@@ -24,11 +24,6 @@ export function AdminLoginForm({ onSuccess }: AdminLoginFormProps) {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  const fillDemoAccount = (username: string, pass: string) => {
-    setForm((prev) => ({ ...prev, username, password: pass }));
-    setLoginError(null);
-  };
-
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoggingIn(true);
@@ -141,27 +136,12 @@ export function AdminLoginForm({ onSuccess }: AdminLoginFormProps) {
           </Button>
         </form>
 
-        {/* Quick Demo Credentials */}
-        <div className="mt-6 border-t border-sand-200 pt-4">
-          <p className="text-2xs font-medium uppercase tracking-wider text-ink-500 mb-2">
-            Tài khoản quản trị mẫu:
+        {/* Security Notice */}
+        <div className="mt-6 border-t border-sand-200 pt-4 text-center">
+          <p className="text-2xs text-ink-500 flex items-center justify-center gap-1.5">
+            <LockIcon className="h-3 w-3 text-ink-400" />
+            <span>Khu vực quản trị nội bộ bảo mật. Mọi lượt truy cập đều được giám sát.</span>
           </p>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => fillDemoAccount("admin", "admin123")}
-              className="tap-feedback rounded-hair border border-sand-300 bg-sand-100 px-2.5 py-1.5 text-2xs font-medium text-ink-700 hover:bg-sand-200 transition-colors"
-            >
-              Super Admin: <span className="font-mono font-bold text-ink-900">admin / admin123</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => fillDemoAccount("lisea", "hawaii2026")}
-              className="tap-feedback rounded-hair border border-sand-300 bg-sand-100 px-2.5 py-1.5 text-2xs font-medium text-ink-700 hover:bg-sand-200 transition-colors"
-            >
-              Manager: <span className="font-mono font-bold text-ink-900">lisea / hawaii2026</span>
-            </button>
-          </div>
         </div>
 
         <div className="mt-6 text-center">

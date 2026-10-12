@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { useAdminAuth } from "@/lib/admin-auth";
+import { useAdminAuth, changeAdminPassword } from "@/lib/admin-auth";
 import { useAdminStore, type DiscountEvent } from "@/lib/admin-store";
 import { readOrders, updateOrderShipping, ORDERS_UPDATED_EVENT } from "@/lib/orders";
 import { updateOrderStatusApi } from "@/lib/api";
@@ -14,6 +14,12 @@ import {
   LogoutIcon,
   UserIcon,
   ClipboardListIcon,
+  ChartBarIcon,
+  TagIcon,
+  HomeIcon,
+  BotIcon,
+  LockIcon,
+  CloseIcon,
 } from "@/components/ui/icons";
 import { CloudflareImageUploader } from "@/components/admin/CloudflareImageUploader";
 import { AdminLoginForm } from "@/components/admin/AdminLoginForm";
@@ -49,6 +55,33 @@ export default function AdminBoardPage() {
     setTimeout(() => {
       setToastMessage(null);
     }, 3000);
+  };
+
+  // Change Password State
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [changePasswordError, setChangePasswordError] = useState<string | null>(null);
+
+  const handleChangePassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    setChangePasswordError(null);
+    if (!user) return;
+    if (newPassword !== confirmPassword) {
+      setChangePasswordError("Xác nhận mật khẩu mới không khớp.");
+      return;
+    }
+    const res = changeAdminPassword(user.username, oldPassword, newPassword);
+    if (!res.success) {
+      setChangePasswordError(res.error || "Không thể đổi mật khẩu.");
+      return;
+    }
+    setIsChangePasswordOpen(false);
+    setOldPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+    showToast("Đổi mật khẩu quản trị thành công!");
   };
 
   // Auth state
@@ -283,6 +316,21 @@ export default function AdminBoardPage() {
             <UserIcon className="h-3.5 w-3.5 text-ink-500" />
             <span className="font-medium text-ink-900">{user?.username}</span>
           </div>
+          <button
+            type="button"
+            onClick={() => {
+              setIsChangePasswordOpen(true);
+              setChangePasswordError(null);
+              setOldPassword("");
+              setNewPassword("");
+              setConfirmPassword("");
+            }}
+            className="rounded-hair border border-sand-300 bg-sand-100 px-3 py-1.5 text-xs font-medium text-ink-700 hover:bg-sand-200 transition-colors flex items-center gap-1.5"
+            title="Đổi mật khẩu quản trị viên"
+          >
+            <LockIcon className="h-3.5 w-3.5 text-ink-500" />
+            <span>Đổi mật khẩu</span>
+          </button>
           <Link
             to="/san-pham"
             className="rounded-hair border border-sand-300 px-3 py-2 text-xs font-medium text-ink-700 hover:border-ink-900 hover:text-ink-900 transition-colors"
@@ -303,100 +351,46 @@ export default function AdminBoardPage() {
       {/* Navigation Menus & Action Buttons */}
       <div className="mt-8 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-sand-200 pb-3">
         <div className="flex items-center gap-2 overflow-x-auto pb-1 lg:pb-0 scrollbar-hide">
-          <button
-            type="button"
-            onClick={() => setCurrentTab("overview")}
-            className={`tap-feedback rounded-hair px-4 py-2 text-xs font-medium transition-all flex items-center gap-1.5 ${
-              currentTab === "overview"
-                ? "bg-ink-900 text-sand-50 shadow-2xs"
-                : "bg-sand-100 text-ink-700 hover:bg-sand-200"
-            }`}
-          >
-            <span>📊</span>
-            <span>Tổng quan</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setCurrentTab("products")}
-            className={`tap-feedback rounded-hair px-4 py-2 text-xs font-medium transition-all flex items-center gap-1.5 ${
-              currentTab === "products"
-                ? "bg-ink-900 text-sand-50 shadow-2xs"
-                : "bg-sand-100 text-ink-700 hover:bg-sand-200"
-            }`}
-          >
-            <PackageIcon className="h-3.5 w-3.5" />
-            <span>Sản phẩm ({products.length})</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setCurrentTab("categories")}
-            className={`tap-feedback rounded-hair px-4 py-2 text-xs font-medium transition-all flex items-center gap-1.5 ${
-              currentTab === "categories"
-                ? "bg-ink-900 text-sand-50 shadow-2xs"
-                : "bg-sand-100 text-ink-700 hover:bg-sand-200"
-            }`}
-          >
-            <span className="font-bold">#</span>
-            <span>Loại sản phẩm ({categories.length})</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setCurrentTab("discounts")}
-            className={`tap-feedback rounded-hair px-4 py-2 text-xs font-medium transition-all flex items-center gap-1.5 ${
-              currentTab === "discounts"
-                ? "bg-ink-900 text-sand-50 shadow-2xs"
-                : "bg-sand-100 text-ink-700 hover:bg-sand-200"
-            }`}
-          >
-            <SparkleIcon className="h-3.5 w-3.5" />
-            <span>Sự kiện giảm giá ({discounts.length})</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setCurrentTab("media")}
-            className={`tap-feedback rounded-hair px-4 py-2 text-xs font-medium transition-all flex items-center gap-1.5 ${
-              currentTab === "media"
-                ? "bg-ink-900 text-sand-50 shadow-2xs"
-                : "bg-sand-100 text-ink-700 hover:bg-sand-200"
-            }`}
-          >
-            <UploadIcon className="h-3.5 w-3.5" />
-            <span>Ảnh Cloudflare</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setCurrentTab("orders")}
-            className={`tap-feedback rounded-hair px-4 py-2 text-xs font-medium transition-all flex items-center gap-1.5 ${
-              currentTab === "orders"
-                ? "bg-ink-900 text-sand-50 shadow-2xs"
-                : "bg-sand-100 text-ink-700 hover:bg-sand-200"
-            }`}
-          >
-            <ClipboardListIcon className="h-3.5 w-3.5" />
-            <span>Đơn hàng ({orders.length})</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setCurrentTab("home_settings")}
-            className={`tap-feedback rounded-hair px-4 py-2 text-xs font-medium transition-all flex items-center gap-1.5 ${
-              currentTab === "home_settings"
-                ? "bg-ink-900 text-sand-50 shadow-2xs"
-                : "bg-sand-100 text-ink-700 hover:bg-sand-200"
-            }`}
-          >
-            <span>🏠 Cài đặt Trang chủ</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setCurrentTab("chatbot")}
-            className={`tap-feedback rounded-hair px-4 py-2 text-xs font-medium transition-all flex items-center gap-1.5 ${
-              currentTab === "chatbot"
-                ? "bg-ink-900 text-sand-50 shadow-2xs"
-                : "bg-sand-100 text-ink-700 hover:bg-sand-200"
-            }`}
-          >
-            <span>🤖 Chatbot AI</span>
-          </button>
+          {[
+            { id: "overview" as AdminTab, label: "Tổng quan", icon: ChartBarIcon, ariaLabel: "Tổng quan" },
+            { id: "products" as AdminTab, label: "Sản phẩm", icon: PackageIcon, count: products.length, ariaLabel: `Sản phẩm (${products.length})` },
+            { id: "categories" as AdminTab, label: "Danh mục", icon: TagIcon, count: categories.length, ariaLabel: `Loại sản phẩm (${categories.length})` },
+            { id: "discounts" as AdminTab, label: "Khuyến mãi", icon: SparkleIcon, count: discounts.length, ariaLabel: `Sự kiện giảm giá (${discounts.length})` },
+            { id: "media" as AdminTab, label: "Ảnh Cloudflare", icon: UploadIcon, ariaLabel: "Ảnh Cloudflare" },
+            { id: "orders" as AdminTab, label: "Đơn hàng", icon: ClipboardListIcon, count: orders.length, ariaLabel: `Đơn hàng (${orders.length})` },
+            { id: "home_settings" as AdminTab, label: "Trang chủ", icon: HomeIcon, ariaLabel: "Cài đặt Trang chủ" },
+            { id: "chatbot" as AdminTab, label: "Chatbot AI", icon: BotIcon, ariaLabel: "Chatbot AI" },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isActive = currentTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setCurrentTab(tab.id)}
+                aria-label={tab.ariaLabel}
+                className={`tap-feedback h-9 shrink-0 px-3.5 rounded-hair text-xs font-medium transition-all inline-flex items-center gap-1.5 whitespace-nowrap ${
+                  isActive
+                    ? "bg-ink-900 text-sand-50 shadow-2xs font-semibold"
+                    : "bg-sand-100 text-ink-700 hover:bg-sand-200 hover:text-ink-900"
+                }`}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                <span>{tab.label}</span>
+                {typeof tab.count === "number" && (
+                  <span
+                    className={`rounded-full px-1.5 py-0.2 text-[10px] font-mono font-semibold leading-none ${
+                      isActive
+                        ? "bg-sand-50/20 text-sand-50"
+                        : "bg-sand-200 text-ink-700"
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* Tab Actions */}
@@ -611,6 +605,101 @@ export default function AdminBoardPage() {
         onClose={() => setViewingOrder(null)}
         onUpdateShipping={handleUpdateShipping}
       />
+
+      {/* Modal Đổi Mật Khẩu Quản Trị */}
+      {isChangePasswordOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="change-password-title"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/60 p-4 backdrop-blur-xs animate-fade-in"
+        >
+          <div className="w-full max-w-md rounded-hair border border-sand-300 bg-sand-50 p-6 shadow-2xl animate-reveal-up">
+            <div className="flex items-center justify-between border-b border-sand-200 pb-3">
+              <div className="flex items-center gap-2">
+                <LockIcon className="h-4 w-4 text-ink-700" />
+                <h3 id="change-password-title" className="font-display text-lg text-ink-900">
+                  Đổi mật khẩu quản trị
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsChangePasswordOpen(false)}
+                className="rounded p-1 text-ink-500 hover:bg-sand-200 hover:text-ink-900"
+                aria-label="Đóng modal"
+              >
+                <CloseIcon className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleChangePassword} className="mt-4 space-y-4">
+              {changePasswordError && (
+                <div role="alert" className="rounded-hair border border-coral-200 bg-coral-50 p-3 text-xs text-coral-800">
+                  {changePasswordError}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-ink-700 mb-1">
+                  Mật khẩu hiện tại
+                </label>
+                <input
+                  type="password"
+                  required
+                  value={oldPassword}
+                  onChange={(e) => setOldPassword(e.target.value)}
+                  className="w-full rounded-hair border border-sand-300 bg-sand-50 px-3 py-2 text-sm text-ink-900 focus:border-ink-900 focus:outline-none"
+                  placeholder="Nhập mật khẩu đang dùng"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-ink-700 mb-1">
+                  Mật khẩu mới (tối thiểu 6 ký tự)
+                </label>
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full rounded-hair border border-sand-300 bg-sand-50 px-3 py-2 text-sm text-ink-900 focus:border-ink-900 focus:outline-none"
+                  placeholder="Nhập mật khẩu mới an toàn"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-ink-700 mb-1">
+                  Xác nhận mật khẩu mới
+                </label>
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full rounded-hair border border-sand-300 bg-sand-50 px-3 py-2 text-sm text-ink-900 focus:border-ink-900 focus:outline-none"
+                  placeholder="Nhập lại mật khẩu mới"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-sand-200">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsChangePasswordOpen(false)}
+                >
+                  Hủy
+                </Button>
+                <Button type="submit" variant="primary" size="sm">
+                  Cập nhật mật khẩu
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

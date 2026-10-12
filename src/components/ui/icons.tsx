@@ -223,3 +223,39 @@ export function ClipboardListIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function ChartBarIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M12 20V10M18 20V4M6 20v-4" />
+    </svg>
+  );
+}
+
+export function TagIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l5.58-5.58c.94-.94.94-2.48 0-3.42L12 2Z" />
+      <circle cx="7" cy="7" r="1.5" />
+    </svg>
+  );
+}
+
+export function HomeIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+      <polyline points="9 22 9 12 15 12 15 22" />
+    </svg>
+  );
+}
+
+export function BotIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M12 8V4H8" />
+      <rect width="16" height="12" x="4" y="8" rx="2" />
+      <path d="M2 14h2M20 14h2M9 13v2M15 13v2" />
+    </svg>
+  );
+}

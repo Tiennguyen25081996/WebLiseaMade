@@ -84,25 +84,73 @@ export function normalizeGoogleDriveUrl(url: string): string {
   return url;
 }
 
-export function getGoogleDriveWebhookUrl(): string {
-  if (typeof window === "undefined") return "";
-  try {
-    return localStorage.getItem(STORAGE_KEY_GDRIVE_WEBHOOK) || "";
-  } catch {
-    return "";
-  }
+let cachedDriveWebhookUrl = "";
+
+export function setCachedDriveWebhookUrl(url: string): void {
+  cachedDriveWebhookUrl = url.trim();
 }
 
-export function setGoogleDriveWebhookUrl(url: string): void {
-  if (typeof window === "undefined") return;
+export function getGoogleDriveWebhookUrl(): string {
+  if (cachedDriveWebhookUrl) return cachedDriveWebhookUrl;
+  if (typeof window === "undefined") return "";
   try {
-    if (!url.trim()) {
-      localStorage.removeItem(STORAGE_KEY_GDRIVE_WEBHOOK);
-    } else {
-      localStorage.setItem(STORAGE_KEY_GDRIVE_WEBHOOK, url.trim());
+    const stored = localStorage.getItem(STORAGE_KEY_GDRIVE_WEBHOOK);
+    if (stored) {
+      cachedDriveWebhookUrl = stored;
+      return stored;
     }
   } catch {
     // ignore
+  }
+  return "";
+}
+
+export async function fetchRemoteDriveWebhookUrl(): Promise<string> {
+  if (typeof window === "undefined") return "";
+  try {
+    const res = await fetch("/api/site-settings");
+    if (res.ok) {
+      const json = (await res.json().catch(() => null)) as {
+        success?: boolean;
+        settings?: Record<string, unknown>;
+      } | null;
+      if (json?.success && json.settings?.gdrive_webhook_url) {
+        const url = String(json.settings.gdrive_webhook_url).trim();
+        cachedDriveWebhookUrl = url;
+        localStorage.setItem(STORAGE_KEY_GDRIVE_WEBHOOK, url);
+        return url;
+      }
+    }
+  } catch {
+    // offline
+  }
+  return getGoogleDriveWebhookUrl();
+}
+
+export async function setGoogleDriveWebhookUrl(url: string): Promise<void> {
+  const trimmed = url.trim();
+  cachedDriveWebhookUrl = trimmed;
+  if (typeof window !== "undefined") {
+    try {
+      if (!trimmed) {
+        localStorage.removeItem(STORAGE_KEY_GDRIVE_WEBHOOK);
+      } else {
+        localStorage.setItem(STORAGE_KEY_GDRIVE_WEBHOOK, trimmed);
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  // Lưu lên Cloudflare D1 để chia sẻ toàn hệ thống
+  try {
+    await fetch("/api/site-settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: "gdrive_webhook_url", value: trimmed }),
+    });
+  } catch {
+    // offline
   }
 }
 
@@ -307,7 +355,10 @@ export async function uploadMediaImage(file: File): Promise<{
   }
 
   // 1. Thử tải lên Google Drive nếu đã có Webhook URL
-  const gdriveWebhook = getGoogleDriveWebhookUrl();
+  let gdriveWebhook = getGoogleDriveWebhookUrl();
+  if (!gdriveWebhook) {
+    gdriveWebhook = await fetchRemoteDriveWebhookUrl();
+  }
   if (gdriveWebhook) {
     try {
       const gdriveRes = await uploadToGoogleDrive(file, gdriveWebhook);
@@ -565,6 +616,7 @@ export async function syncOfflineImagesToCloudflare(): Promise<{
       });
 
       if (res.ok) {
+        removeOfflineImage(item.id);
         synced++;
       } else {
         failed++;

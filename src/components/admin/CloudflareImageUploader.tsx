@@ -7,10 +7,9 @@ import {
   importGoogleDriveLinks,
   getGoogleDriveWebhookUrl,
   setGoogleDriveWebhookUrl,
+  fetchRemoteDriveWebhookUrl,
   GOOGLE_APPS_SCRIPT_TEMPLATE,
   extractGoogleDriveFileId,
-  getOfflineImages,
-  syncOfflineImagesToCloudflare,
   seedLibraryWithSampleImages,
 } from "@/lib/media-api";
 import {
@@ -69,8 +68,6 @@ export function CloudflareImageUploader({
   const [isBatchDeleting, setIsBatchDeleting] = useState(false);
   const [showBatchDeleteModal, setShowBatchDeleteModal] = useState(false);
   const [selectedUrls, setSelectedUrls] = useState<string[]>([]);
-  const [offlineCount, setOfflineCount] = useState(0);
-  const [isSyncing, setIsSyncing] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -84,25 +81,10 @@ export function CloudflareImageUploader({
     try {
       const data = await getMediaImages();
       setImages(data);
-      setOfflineCount(getOfflineImages().length);
     } catch {
       // ignore
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleSyncOffline = async () => {
-    setIsSyncing(true);
-    showToast("Đang đồng bộ ảnh lên Cloudflare D1...");
-    try {
-      const res = await syncOfflineImagesToCloudflare();
-      showToast(`Đã đồng bộ ${res.synced} ảnh lên Cloudflare D1!`);
-      await loadImages();
-    } catch {
-      showToast("Lỗi đồng bộ. Hãy kiểm tra kết nối.");
-    } finally {
-      setIsSyncing(false);
     }
   };
 
@@ -122,7 +104,9 @@ export function CloudflareImageUploader({
 
   useEffect(() => {
     loadImages();
-    setWebhookUrl(getGoogleDriveWebhookUrl());
+    void fetchRemoteDriveWebhookUrl().then((url) => {
+      if (url) setWebhookUrl(url);
+    });
   }, []);
 
   const handleFiles = async (files: FileList | File[]) => {
@@ -190,12 +174,12 @@ export function CloudflareImageUploader({
     }
   };
 
-  const handleSaveWebhook = () => {
-    setGoogleDriveWebhookUrl(webhookUrl);
+  const handleSaveWebhook = async () => {
+    await setGoogleDriveWebhookUrl(webhookUrl);
     setShowConfigModal(false);
     showToast(
       webhookUrl.trim()
-        ? "Đã lưu Google Drive Webhook URL!"
+        ? "Đã lưu Google Drive Webhook lên Cloudflare D1 cho toàn hệ thống!"
         : "Đã hủy cấu hình Google Drive Webhook, chuyển về lưu trữ mặc định."
     );
   };
@@ -383,31 +367,6 @@ export function CloudflareImageUploader({
           </div>
         </div>
       </div>
-
-      {/* Cảnh báo ảnh offline chưa đồng bộ lên Cloudflare D1 */}
-      {offlineCount > 0 && (
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-hair border border-amber-300 bg-amber-50 p-3.5 text-xs text-amber-900 animate-reveal-up">
-          <div className="flex items-center gap-2">
-            <span className="text-base">⚠️</span>
-            <div>
-              <p className="font-semibold">
-                Phát hiện {offlineCount} ảnh đang lưu tạm trên trình duyệt của bạn
-              </p>
-              <p className="text-2xs text-amber-800">
-                Những ảnh này người khác chưa xem được vì chưa đẩy lên Cloudflare D1. Hãy bấm đồng bộ để lưu vĩnh viễn lên server.
-              </p>
-            </div>
-          </div>
-          <Button
-            variant="primary"
-            size="sm"
-            disabled={isSyncing}
-            onClick={handleSyncOffline}
-          >
-            {isSyncing ? "Đang đồng bộ..." : "Đồng bộ lên Cloudflare D1 ngay"}
-          </Button>
-        </div>
-      )}
 
       {/* Tabs Chuyển Đổi Phương Thức Tải Ảnh */}
       <div className="flex border-b border-sand-300">
@@ -851,9 +810,13 @@ export function CloudflareImageUploader({
               <ol className="list-decimal list-inside space-y-1 text-2xs text-ink-600">
                 <li>Truy cập <a href="https://script.google.com" target="_blank" rel="noreferrer" className="text-lagoon-700 underline">script.google.com</a> và tạo project mới.</li>
                 <li>Dán đoạn mã trên vào rồi bấm <strong>Triển khai (Deploy) &gt; Tùy chọn triển khai mới (New deployment)</strong>.</li>
-                <li>Chọn loại: <strong>Ứng dụng web (Web app)</strong>, quyền truy cập: <strong>Bất kỳ ai (Anyone)</strong>.</li>
+                <li>Chọn loại: <strong>Ứng dụng web (Web app)</strong>, thực thi dưới tên: <strong>Tôi (Me)</strong>, quyền truy cập: <strong>Bất kỳ ai (Anyone)</strong>.</li>
                 <li>Sao chép URL ứng dụng web nhận được và dán vào ô bên dưới:</li>
               </ol>
+
+              <div className="rounded-hair bg-blue-50 border border-blue-200 p-2.5 text-2xs text-blue-900">
+                💡 <strong>Chỉ cần cấu hình 1 lần duy nhất:</strong> Hệ thống lưu Webhook URL này trên Cloudflare D1. Người khác ở bất kỳ thiết bị nào khi upload ảnh mới đều tự động lưu vào Google Drive của bạn mà không cần phải cài đặt lại!
+              </div>
 
               <div>
                 <label className="block text-2xs font-semibold text-ink-800 mb-1">
