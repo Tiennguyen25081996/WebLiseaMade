@@ -143,7 +143,6 @@ export async function initDb(db: D1Database): Promise<void> {
     dbInitialized = true;
   } catch (err) {
     console.warn("initDb warning:", err);
-    dbInitialized = true;
   }
 }
 
@@ -575,13 +574,36 @@ export default {
           const createdAt = new Date().toISOString();
           const publicUrl = `/api/images/${imageId}`;
 
-          await db
-            .prepare(
-              `INSERT INTO media_files (id, filename, mime_type, size, url, created_at, data)
-               VALUES (?, ?, ?, ?, ?, ?, ?)`
-            )
-            .bind(imageId, filename, mimeType, size, publicUrl, createdAt, base64Data)
-            .run();
+          try {
+            await db
+              .prepare(
+                `INSERT INTO media_files (id, filename, mime_type, size, url, created_at, data)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`
+              )
+              .bind(imageId, filename, mimeType, size, publicUrl, createdAt, base64Data)
+              .run();
+          } catch {
+            // Auto-heal nếu bảng media_files chưa được tạo
+            await db.exec(`
+              CREATE TABLE IF NOT EXISTS media_files (
+                id TEXT PRIMARY KEY,
+                filename TEXT NOT NULL,
+                mime_type TEXT NOT NULL,
+                size INTEGER NOT NULL CHECK (size >= 0),
+                url TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                data TEXT
+              );
+              CREATE INDEX IF NOT EXISTS idx_media_files_created ON media_files(created_at DESC);
+            `);
+            await db
+              .prepare(
+                `INSERT INTO media_files (id, filename, mime_type, size, url, created_at, data)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`
+              )
+              .bind(imageId, filename, mimeType, size, publicUrl, createdAt, base64Data)
+              .run();
+          }
 
           return apiJson(
             {
@@ -601,25 +623,64 @@ export default {
 
         // GET /api/images - Danh sách ảnh đã upload
         if (url.pathname === "/api/images" && request.method === "GET") {
-          const result = await db
-            .prepare(
-              "SELECT id, filename, mime_type, size, url, created_at FROM media_files ORDER BY created_at DESC LIMIT 100"
-            )
-            .all();
+          try {
+            const result = await db
+              .prepare(
+                "SELECT id, filename, mime_type, size, url, created_at FROM media_files ORDER BY created_at DESC LIMIT 100"
+              )
+              .all();
 
-          return apiJson({
-            success: true,
-            images: result.results || [],
-          });
+            return apiJson({
+              success: true,
+              images: result.results || [],
+            });
+          } catch {
+            // Auto-heal nếu bảng media_files chưa tồn tại
+            try {
+              await db.exec(`
+                CREATE TABLE IF NOT EXISTS media_files (
+                  id TEXT PRIMARY KEY,
+                  filename TEXT NOT NULL,
+                  mime_type TEXT NOT NULL,
+                  size INTEGER NOT NULL CHECK (size >= 0),
+                  url TEXT NOT NULL,
+                  created_at TEXT NOT NULL,
+                  data TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_media_files_created ON media_files(created_at DESC);
+              `);
+              const retryResult = await db
+                .prepare(
+                  "SELECT id, filename, mime_type, size, url, created_at FROM media_files ORDER BY created_at DESC LIMIT 100"
+                )
+                .all();
+
+              return apiJson({
+                success: true,
+                images: retryResult.results || [],
+              });
+            } catch {
+              return apiJson({
+                success: true,
+                images: [],
+              });
+            }
+          }
         }
 
         // GET /api/images/:id - Trả về dữ liệu ảnh binary hoặc redirect nếu link Google Drive
         if (url.pathname.startsWith("/api/images/") && request.method === "GET") {
           const imageId = decodeURIComponent(url.pathname.replace("/api/images/", "")).trim();
-          const record = await db
-            .prepare("SELECT mime_type, data, url FROM media_files WHERE id = ?")
-            .bind(imageId)
-            .first<{ mime_type: string; data: string | null; url: string | null }>();
+          let record: { mime_type?: string; data?: string | null; url?: string | null } | null = null;
+
+          try {
+            record = await db
+              .prepare("SELECT mime_type, data, url FROM media_files WHERE id = ?")
+              .bind(imageId)
+              .first<{ mime_type: string; data: string | null; url: string | null }>();
+          } catch {
+            return apiJson({ success: false, error: "Bảng hình ảnh chưa khởi tạo" }, 404);
+          }
 
           if (!record) {
             return apiJson({ success: false, error: "Không tìm thấy hình ảnh" }, 404);
@@ -646,7 +707,11 @@ export default {
         // DELETE /api/images/:id - Xóa ảnh
         if (url.pathname.startsWith("/api/images/") && request.method === "DELETE") {
           const imageId = decodeURIComponent(url.pathname.replace("/api/images/", "")).trim();
-          await db.prepare("DELETE FROM media_files WHERE id = ?").bind(imageId).run();
+          try {
+            await db.prepare("DELETE FROM media_files WHERE id = ?").bind(imageId).run();
+          } catch {
+            // Không lỗi nếu bảng chưa tồn tại
+          }
           return apiJson({ success: true, id: imageId });
         }
 
