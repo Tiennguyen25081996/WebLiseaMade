@@ -437,7 +437,7 @@ export default {
           return apiJson({ success: true, loggedAt: createdAt }, 201);
         }
 
-        // POST /api/upload - Tải ảnh lên Cloudflare / D1
+        // POST /api/upload - Tải ảnh lên Cloudflare / D1 hoặc lưu link Google Drive
         if (url.pathname === "/api/upload" && request.method === "POST") {
           const contentType = request.headers.get("Content-Type") || "";
           let filename = "image.png";
@@ -461,15 +461,57 @@ export default {
             const buffer = await f.arrayBuffer();
             base64Data = arrayBufferToBase64(buffer);
           } else {
-            // JSON fallback: { file: base64, filename: string, mimeType: string }
+            // JSON fallback: { file: base64, filename: string, mimeType: string } HOẶC { url: string, filename?: string }
             const json = (await request.json().catch(() => null)) as {
+              url?: string;
               file?: string;
               filename?: string;
               mimeType?: string;
+              size?: number;
             } | null;
 
-            if (!json || !json.file) {
-              return apiJson({ success: false, error: "Thiếu dữ liệu file" }, 400);
+            if (!json) {
+              return apiJson({ success: false, error: "Thiếu dữ liệu JSON" }, 400);
+            }
+
+            // Lưu link trực tiếp từ Google Drive hoặc CDN bên ngoài (không lưu base64 vào D1)
+            if (json.url) {
+              const directUrl = String(json.url).trim();
+              if (!directUrl.startsWith("http://") && !directUrl.startsWith("https://")) {
+                return apiJson({ success: false, error: "Đường dẫn ảnh phải bắt đầu bằng http:// hoặc https://" }, 400);
+              }
+              const gdriveFilename = json.filename ? String(json.filename) : "drive-image.jpg";
+              const gdriveMime = json.mimeType ? String(json.mimeType) : "image/jpeg";
+              const gdriveSize = Number(json.size) || 0;
+              const imageId = `gdrive_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+              const createdAt = new Date().toISOString();
+
+              await db
+                .prepare(
+                  `INSERT INTO media_files (id, filename, mime_type, size, url, created_at, data)
+                   VALUES (?, ?, ?, ?, ?, ?, NULL)`
+                )
+                .bind(imageId, gdriveFilename, gdriveMime, gdriveSize, directUrl, createdAt)
+                .run();
+
+              return apiJson(
+                {
+                  success: true,
+                  image: {
+                    id: imageId,
+                    filename: gdriveFilename,
+                    mimeType: gdriveMime,
+                    size: gdriveSize,
+                    url: directUrl,
+                    createdAt,
+                  },
+                },
+                201,
+              );
+            }
+
+            if (!json.file) {
+              return apiJson({ success: false, error: "Thiếu dữ liệu file hoặc link ảnh url" }, 400);
             }
 
             filename = json.filename || "uploaded.png";
@@ -538,16 +580,23 @@ export default {
           });
         }
 
-        // GET /api/images/:id - Trả về dữ liệu ảnh binary
+        // GET /api/images/:id - Trả về dữ liệu ảnh binary hoặc redirect nếu link Google Drive
         if (url.pathname.startsWith("/api/images/") && request.method === "GET") {
           const imageId = decodeURIComponent(url.pathname.replace("/api/images/", "")).trim();
           const record = await db
-            .prepare("SELECT mime_type, data FROM media_files WHERE id = ?")
+            .prepare("SELECT mime_type, data, url FROM media_files WHERE id = ?")
             .bind(imageId)
-            .first<{ mime_type: string; data: string }>();
+            .first<{ mime_type: string; data: string | null; url: string | null }>();
 
-          if (!record || !record.data) {
+          if (!record) {
             return apiJson({ success: false, error: "Không tìm thấy hình ảnh" }, 404);
+          }
+
+          if (!record.data) {
+            if (record.url && (record.url.startsWith("http://") || record.url.startsWith("https://"))) {
+              return Response.redirect(record.url, 302);
+            }
+            return apiJson({ success: false, error: "Không tìm thấy dữ liệu hình ảnh" }, 404);
           }
 
           const binary = base64ToUint8Array(record.data);

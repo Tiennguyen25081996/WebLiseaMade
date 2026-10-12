@@ -3,6 +3,7 @@ import type { Product, Category, CategoryId, ProductVariant } from "@/types";
 import { Button } from "@/components/ui/Button";
 import { CloseIcon, UploadIcon } from "@/components/ui/icons";
 import { CloudflareImageUploader } from "@/components/admin/CloudflareImageUploader";
+import { normalizeGoogleDriveUrl } from "@/lib/media-api";
 
 const DEFAULT_SIZES = ["S", "M", "L", "XL", "Free size"];
 
@@ -85,7 +86,7 @@ export function ProductEditModal({
 
     const imagesList = form.images
       .split("\n")
-      .map((s) => s.trim())
+      .map((s) => normalizeGoogleDriveUrl(s.trim()))
       .filter(Boolean);
 
     const materialsList = form.materials
@@ -325,7 +326,7 @@ export function ProductEditModal({
                   className="inline-flex items-center gap-1 text-[11px] font-medium text-lagoon-700 hover:text-lagoon-800 transition-colors"
                 >
                   <UploadIcon className="h-3 w-3" />
-                  <span>Tải / Chọn từ Cloudflare</span>
+                  <span>Tải / Chọn từ Cloudflare & Drive</span>
                 </button>
               </div>
               <textarea
@@ -334,7 +335,7 @@ export function ProductEditModal({
                 value={form.images}
                 onChange={(e) => setForm({ ...form, images: e.target.value })}
                 className="w-full rounded-hair border border-sand-300 px-3 py-2 text-ink-900 font-mono text-2xs"
-                placeholder="/figma-images/catalog-1.png"
+                placeholder="/figma-images/catalog-1.png hoặc link Google Drive"
               />
 
               {previewUrls.length > 0 && (
@@ -343,54 +344,57 @@ export function ProductEditModal({
                     Xem trước ảnh ({previewUrls.length} ảnh — ảnh đầu tiên là ảnh chính):
                   </span>
                   <div className="flex flex-wrap gap-2">
-                    {previewUrls.map((url, idx) => (
-                      <div
-                        key={`${url}-${idx}`}
-                        className={`relative rounded-hair border p-1 bg-sand-100 flex flex-col items-center ${
-                          idx === 0 ? "border-lagoon-600 ring-1 ring-lagoon-600" : "border-sand-300"
-                        }`}
-                      >
-                        <img
-                          src={url}
-                          alt={`Preview ${idx + 1}`}
-                          className="h-14 w-14 object-cover rounded-hair bg-sand-200"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = "/figma-images/catalog-1.png";
-                          }}
-                        />
-                        {idx === 0 && (
-                          <span className="absolute top-1.5 left-1.5 bg-lagoon-700 text-sand-50 text-[9px] px-1 py-0.2 rounded font-medium">
-                            Ảnh chính
-                          </span>
-                        )}
-                        <div className="mt-1 flex items-center gap-2">
-                          {idx > 0 && (
+                    {previewUrls.map((url, idx) => {
+                      const directSrc = normalizeGoogleDriveUrl(url);
+                      return (
+                        <div
+                          key={`${url}-${idx}`}
+                          className={`relative rounded-hair border p-1 bg-sand-100 flex flex-col items-center ${
+                            idx === 0 ? "border-lagoon-600 ring-1 ring-lagoon-600" : "border-sand-300"
+                          }`}
+                        >
+                          <img
+                            src={directSrc}
+                            alt={`Preview ${idx + 1}`}
+                            className="h-14 w-14 object-cover rounded-hair bg-sand-200"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = "/figma-images/catalog-1.png";
+                            }}
+                          />
+                          {idx === 0 && (
+                            <span className="absolute top-1.5 left-1.5 bg-lagoon-700 text-sand-50 text-[9px] px-1 py-0.2 rounded font-medium">
+                              Ảnh chính
+                            </span>
+                          )}
+                          <div className="mt-1 flex items-center gap-2">
+                            {idx > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const next = [url, ...previewUrls.filter((_, i) => i !== idx)];
+                                  setForm({ ...form, images: next.join("\n") });
+                                }}
+                                className="text-[10px] text-lagoon-700 hover:text-lagoon-900 font-medium underline"
+                                title="Đặt làm ảnh chính"
+                              >
+                                Lên đầu
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => {
-                                const next = [url, ...previewUrls.filter((_, i) => i !== idx)];
+                                const next = previewUrls.filter((_, i) => i !== idx);
                                 setForm({ ...form, images: next.join("\n") });
                               }}
-                              className="text-[10px] text-lagoon-700 hover:text-lagoon-900 font-medium underline"
-                              title="Đặt làm ảnh chính"
+                              className="text-[10px] text-coral-700 hover:text-coral-900 font-medium"
+                              title="Xóa ảnh"
                             >
-                              Lên đầu
+                              Xóa
                             </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const next = previewUrls.filter((_, i) => i !== idx);
-                              setForm({ ...form, images: next.join("\n") });
-                            }}
-                            className="text-[10px] text-coral-700 hover:text-coral-900 font-medium"
-                            title="Xóa ảnh"
-                          >
-                            Xóa
-                          </button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}

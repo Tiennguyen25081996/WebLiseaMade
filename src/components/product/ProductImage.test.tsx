@@ -33,4 +33,15 @@ describe("ProductImage", () => {
     const newImg = screen.getByRole("img", { name: "Váy hoa" });
     expect(newImg).toHaveAttribute("src", "/new-fixed-image.jpg");
   });
+
+  it("tự động chuẩn hóa link Google Drive sang CDN trực tiếp", () => {
+    render(
+      <ProductImage
+        src="https://drive.google.com/file/d/1XyZ_testDriveId/view?usp=sharing"
+        alt="Váy maxi"
+      />
+    );
+    const img = screen.getByRole("img", { name: "Váy maxi" });
+    expect(img).toHaveAttribute("src", "https://lh3.googleusercontent.com/d/1XyZ_testDriveId");
+  });
 });

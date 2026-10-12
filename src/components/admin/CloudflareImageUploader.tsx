@@ -4,6 +4,11 @@ import {
   getMediaImages,
   uploadMultipleMediaImages,
   deleteMediaImage,
+  importGoogleDriveLinks,
+  getGoogleDriveWebhookUrl,
+  setGoogleDriveWebhookUrl,
+  GOOGLE_APPS_SCRIPT_TEMPLATE,
+  extractGoogleDriveFileId,
 } from "@/lib/media-api";
 import { Button } from "@/components/ui/Button";
 import {
@@ -14,6 +19,7 @@ import {
   TrashIcon,
   SearchIcon,
   SparkleIcon,
+  CloseIcon,
 } from "@/components/ui/icons";
 
 export interface CloudflareImageUploaderProps {
@@ -37,6 +43,17 @@ export function CloudflareImageUploader({
     current: number;
     filename: string;
   } | null>(null);
+
+  // Tabs: upload file / nhập link google drive / cài đặt
+  const [activeTab, setActiveTab] = useState<"upload" | "import_drive">("upload");
+  const [driveLinksText, setDriveLinksText] = useState("");
+  const [isImportingDrive, setIsImportingDrive] = useState(false);
+
+  // Cấu hình Google Drive Webhook
+  const [showConfigModal, setShowConfigModal] = useState(false);
+  const [webhookUrl, setWebhookUrl] = useState("");
+  const [isCopiedScript, setIsCopiedScript] = useState(false);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -48,10 +65,6 @@ export function CloudflareImageUploader({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const showToast = (msg: string) => {
-    setToastMessage(msg);
-  };
-
-  const setToastMessage = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
   };
@@ -70,6 +83,7 @@ export function CloudflareImageUploader({
 
   useEffect(() => {
     loadImages();
+    setWebhookUrl(getGoogleDriveWebhookUrl());
   }, []);
 
   const handleFiles = async (files: FileList | File[]) => {
@@ -83,6 +97,8 @@ export function CloudflareImageUploader({
       filename: rawList[0].name,
     });
 
+    const isDriveActive = Boolean(getGoogleDriveWebhookUrl());
+
     const { successful, failed } = await uploadMultipleMediaImages(
       rawList,
       (progress) => {
@@ -94,7 +110,8 @@ export function CloudflareImageUploader({
     setUploadProgress(null);
 
     if (successful.length > 0) {
-      showToast(`Đã tải lên thành công ${successful.length}/${rawList.length} ảnh lên Cloudflare!`);
+      const destination = isDriveActive ? "Google Drive & Cloudflare D1" : "Cloudflare";
+      showToast(`Đã tải lên thành công ${successful.length}/${rawList.length} ảnh lên ${destination}!`);
       await loadImages();
     }
 
@@ -105,6 +122,53 @@ export function CloudflareImageUploader({
           ? `Lỗi tải ảnh: ${firstErr}`
           : `Có ${failed.length} ảnh bị lỗi (${firstErr})`
       );
+    }
+  };
+
+  const handleImportDriveLinks = async () => {
+    const urls = driveLinksText
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    if (urls.length === 0) {
+      showToast("Vui lòng nhập ít nhất một đường dẫn Google Drive!");
+      return;
+    }
+
+    setIsImportingDrive(true);
+    const { successful, failed } = await importGoogleDriveLinks(urls);
+    setIsImportingDrive(false);
+
+    if (successful.length > 0) {
+      showToast(`Đã nhập thành công ${successful.length} ảnh Google Drive vào Cloudflare!`);
+      setDriveLinksText("");
+      await loadImages();
+    }
+
+    if (failed.length > 0) {
+      showToast(`Có ${failed.length} link không hợp lệ hoặc lỗi trích xuất ID.`);
+    }
+  };
+
+  const handleSaveWebhook = () => {
+    setGoogleDriveWebhookUrl(webhookUrl);
+    setShowConfigModal(false);
+    showToast(
+      webhookUrl.trim()
+        ? "Đã lưu Google Drive Webhook URL!"
+        : "Đã hủy cấu hình Google Drive Webhook, chuyển về lưu trữ mặc định."
+    );
+  };
+
+  const handleCopyScriptTemplate = async () => {
+    try {
+      await navigator.clipboard.writeText(GOOGLE_APPS_SCRIPT_TEMPLATE);
+      setIsCopiedScript(true);
+      showToast("Đã sao chép mã nguồn Google Apps Script!");
+      setTimeout(() => setIsCopiedScript(false), 2500);
+    } catch {
+      showToast("Không thể sao chép mã nguồn.");
     }
   };
 
@@ -164,9 +228,18 @@ export function CloudflareImageUploader({
   };
 
   const formatSize = (bytes: number): string => {
+    if (bytes <= 0) return "Google Drive";
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const isGoogleDriveImage = (url: string) => {
+    return (
+      url.includes("googleusercontent.com") ||
+      url.includes("drive.google.com") ||
+      Boolean(extractGoogleDriveFileId(url))
+    );
   };
 
   const filteredImages = images.filter((img) => {
@@ -189,6 +262,8 @@ export function CloudflareImageUploader({
     }
   };
 
+  const hasConfiguredDrive = Boolean(getGoogleDriveWebhookUrl());
+
   return (
     <div className={`space-y-6 ${className}`}>
       {/* Toast Notification */}
@@ -203,7 +278,7 @@ export function CloudflareImageUploader({
         </div>
       )}
 
-      {/* Cloudflare Connection Info Banner */}
+      {/* Cloudflare & Google Drive Connection Info Banner */}
       <div className="rounded-hair border border-sand-300 bg-sand-100 p-5">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -215,110 +290,194 @@ export function CloudflareImageUploader({
                 <span className="font-display text-sm font-semibold text-ink-900">
                   Cloudflare Media Hub
                 </span>
-                <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-800">
-                  <span className="h-1.5 w-1.5 rounded-full bg-green-600" />
-                  Đang hoạt động
+                <span className="text-xs text-ink-500 font-normal">
+                  (Tích hợp Google Drive)
                 </span>
+                {hasConfiguredDrive ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-800">
+                    <span className="h-1.5 w-1.5 rounded-full bg-green-600" />
+                    Drive Webhook: Đã kết nối
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-800">
+                    Hỗ trợ dán link Drive & Webhook
+                  </span>
+                )}
               </div>
               <p className="mt-0.5 text-xs text-ink-600">
-                Lưu trữ và phân phối hình ảnh qua Cloudflare D1 / CDN tốc độ cao.
+                Lưu trữ ảnh trên Google Drive, link lưu vào Cloudflare D1 để tránh giới hạn dung lượng database.
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono text-ink-600 bg-sand-50 border border-sand-200 px-3 py-1.5 rounded-hair">
-            <span>Account: 64b81bdc...</span>
-            <span className="text-sand-400">|</span>
-            <span>DB: prod-d1-tutorial</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowConfigModal(true)}
+              className="rounded-hair border border-sand-300 bg-sand-50 px-3 py-1.5 text-xs font-medium text-ink-800 hover:bg-sand-200 transition-colors"
+            >
+              ⚙️ Cấu hình Drive Webhook
+            </button>
+            <div className="flex items-center gap-1 text-[11px] font-mono text-ink-600 bg-sand-50 border border-sand-200 px-2.5 py-1.5 rounded-hair">
+              <span>DB: prod-d1-tutorial</span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Drag & Drop Upload Zone (Hỗ trợ upload nhiều ảnh) */}
-      <div
-        onDragOver={(e) => {
-          e.preventDefault();
-          setDragOver(true);
-        }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDragOver(false);
-          if (e.dataTransfer.files) {
-            handleFiles(e.dataTransfer.files);
-          }
-        }}
-        className={`relative flex flex-col items-center justify-center rounded-hair border-2 border-dashed p-8 text-center transition-all ${
-          dragOver
-            ? "border-lagoon-600 bg-lagoon-50/50 scale-[1.005]"
-            : "border-sand-300 bg-sand-50/80 hover:border-ink-900/40 hover:bg-sand-100/50"
-        }`}
-      >
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/png,image/jpeg,image/webp,image/gif,.png,.jpg,.jpeg,.webp,.gif"
-          multiple
-          className="hidden"
-          onChange={(e) => {
-            if (e.target.files) {
-              handleFiles(e.target.files);
+      {/* Tabs Chuyển Đổi Phương Thức Tải Ảnh */}
+      <div className="flex border-b border-sand-300">
+        <button
+          type="button"
+          onClick={() => setActiveTab("upload")}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors ${
+            activeTab === "upload"
+              ? "border-lagoon-700 text-lagoon-900 bg-sand-100/60"
+              : "border-transparent text-ink-600 hover:text-ink-900"
+          }`}
+        >
+          <UploadIcon className="h-4 w-4" />
+          <span>Tải file ảnh từ máy tính</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("import_drive")}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors ${
+            activeTab === "import_drive"
+              ? "border-lagoon-700 text-lagoon-900 bg-sand-100/60"
+              : "border-transparent text-ink-600 hover:text-ink-900"
+          }`}
+        >
+          <span>🔗 Nhập link Google Drive</span>
+          <span className="rounded-full bg-lagoon-100 px-1.5 py-0.2 text-[10px] text-lagoon-800 font-medium">
+            Tiết kiệm quota
+          </span>
+        </button>
+      </div>
+
+      {/* Tab 1: Kéo thả file upload */}
+      {activeTab === "upload" && (
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragOver(true);
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragOver(false);
+            if (e.dataTransfer.files) {
+              handleFiles(e.dataTransfer.files);
             }
           }}
-        />
+          className={`relative flex flex-col items-center justify-center rounded-hair border-2 border-dashed p-8 text-center transition-all ${
+            dragOver
+              ? "border-lagoon-600 bg-lagoon-50/50 scale-[1.005]"
+              : "border-sand-300 bg-sand-50/80 hover:border-ink-900/40 hover:bg-sand-100/50"
+          }`}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif,.png,.jpg,.jpeg,.webp,.gif"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              if (e.target.files) {
+                handleFiles(e.target.files);
+              }
+            }}
+          />
 
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-sand-200 text-ink-800 mb-3">
-          <UploadIcon className="h-6 w-6" />
-        </div>
-
-        <h3 className="font-display text-sm font-semibold text-ink-900">
-          Kéo thả ảnh vào đây hoặc nhấp để tải lên
-        </h3>
-        <p className="mt-1 text-xs text-ink-500 max-w-sm">
-          Hỗ trợ định dạng PNG, JPG, WEBP, GIF. Cho phép chọn nhiều ảnh cùng lúc, tối đa 10MB mỗi ảnh.
-        </p>
-
-        {/* Thanh tiến trình tải nhiều ảnh */}
-        {uploadProgress && (
-          <div className="w-full max-w-md mt-4 space-y-1.5 rounded-hair border border-sand-300 bg-sand-100 p-3 text-left animate-reveal-up">
-            <div className="flex items-center justify-between text-2xs text-ink-700">
-              <span className="font-medium truncate max-w-[240px]">
-                Đang tải ({uploadProgress.current}/{uploadProgress.total}): {uploadProgress.filename}
-              </span>
-              <span className="font-mono text-lagoon-700 font-semibold">
-                {Math.round((uploadProgress.current / uploadProgress.total) * 100)}%
-              </span>
-            </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-sand-200">
-              <div
-                className="h-full bg-lagoon-600 transition-all duration-300"
-                style={{
-                  width: `${(uploadProgress.current / uploadProgress.total) * 100}%`,
-                }}
-              />
-            </div>
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-sand-200 text-ink-800 mb-3">
+            <UploadIcon className="h-6 w-6" />
           </div>
-        )}
 
-        <div className="mt-4 flex items-center gap-3">
-          <Button
-            variant="primary"
-            size="sm"
-            disabled={isUploading}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            {isUploading ? "Đang tải ảnh lên Cloudflare..." : "+ Chọn ảnh từ máy"}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={loadImages}
-            disabled={isLoading || isUploading}
-          >
-            Làm mới
-          </Button>
+          <h3 className="font-display text-sm font-semibold text-ink-900">
+            Kéo thả ảnh vào đây hoặc nhấp để tải lên
+          </h3>
+          <p className="mt-1 text-xs text-ink-500 max-w-sm">
+            Hỗ trợ PNG, JPG, WEBP, GIF. {hasConfiguredDrive ? "Ảnh sẽ tự động upload lên Google Drive và lưu link vào D1." : "Cho phép chọn nhiều ảnh cùng lúc, tối đa 10MB mỗi ảnh."}
+          </p>
+
+          {/* Thanh tiến trình tải nhiều ảnh */}
+          {uploadProgress && (
+            <div className="w-full max-w-md mt-4 space-y-1.5 rounded-hair border border-sand-300 bg-sand-100 p-3 text-left animate-reveal-up">
+              <div className="flex items-center justify-between text-2xs text-ink-700">
+                <span className="font-medium truncate max-w-[240px]">
+                  Đang tải ({uploadProgress.current}/{uploadProgress.total}): {uploadProgress.filename}
+                </span>
+                <span className="font-mono text-lagoon-700 font-semibold">
+                  {Math.round((uploadProgress.current / uploadProgress.total) * 100)}%
+                </span>
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-sand-200">
+                <div
+                  className="h-full bg-lagoon-600 transition-all duration-300"
+                  style={{
+                    width: `${(uploadProgress.current / uploadProgress.total) * 100}%`,
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="mt-4 flex items-center gap-3">
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={isUploading}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {isUploading ? "Đang tải ảnh lên Cloudflare..." : "+ Chọn ảnh từ máy"}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={loadImages}
+              disabled={isLoading || isUploading}
+            >
+              Làm mới
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Tab 2: Nhập danh sách link Google Drive */}
+      {activeTab === "import_drive" && (
+        <div className="rounded-hair border border-sand-300 bg-sand-50 p-6 space-y-4">
+          <div>
+            <h4 className="font-display text-sm font-semibold text-ink-900">
+              Dán liên kết ảnh từ Google Drive
+            </h4>
+            <p className="text-xs text-ink-600 mt-1">
+              Bạn có thể dán 1 hoặc nhiều link chia sẻ từ Google Drive (mỗi dòng một link). Hệ thống sẽ tự động trích xuất File ID và tạo liên kết trực tiếp (Google High-speed CDN) lưu vào Cloudflare D1.
+            </p>
+          </div>
+
+          <textarea
+            rows={4}
+            value={driveLinksText}
+            onChange={(e) => setDriveLinksText(e.target.value)}
+            placeholder={`https://drive.google.com/file/d/1A2B3C4D5E.../view?usp=sharing\nhttps://drive.google.com/file/d/6F7G8H9I0J.../view`}
+            className="w-full rounded-hair border border-sand-300 bg-sand-100/50 p-3 text-xs font-mono text-ink-900 focus:outline-none focus:border-ink-900"
+          />
+
+          <div className="flex items-center justify-between">
+            <span className="text-2xs text-ink-500">
+              * Lưu ý: Hãy đảm bảo các file trên Drive đã được bật quyền "Bất kỳ ai có đường liên kết đều có thể xem".
+            </span>
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={isImportingDrive || !driveLinksText.trim()}
+              onClick={handleImportDriveLinks}
+            >
+              {isImportingDrive ? "Đang chuyển đổi và lưu..." : "Chuyển đổi & Lưu vào D1"}
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Gallery Section */}
       <div className="space-y-4">
@@ -408,13 +567,14 @@ export function CloudflareImageUploader({
           <div className="rounded-hair border border-sand-300 bg-sand-100 p-10 text-center text-xs text-ink-500">
             {searchQuery
               ? "Không tìm thấy ảnh phù hợp với từ khóa."
-              : "Chưa có ảnh nào được tải lên. Hãy kéo thả ảnh hoặc bấm chọn ảnh ở trên!"}
+              : "Chưa có ảnh nào được tải lên. Hãy kéo thả ảnh hoặc dán link Google Drive ở trên!"}
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
             {filteredImages.map((img) => {
               const isCopied = copiedId === img.id;
               const isSelected = selectedUrls.includes(img.url);
+              const isDrive = isGoogleDriveImage(img.url);
 
               return (
                 <div
@@ -433,7 +593,7 @@ export function CloudflareImageUploader({
                       className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                       loading="lazy"
                       onError={(e) => {
-                        (e.target as HTMLImageElement).src = "/placeholder-product.jpg";
+                        (e.target as HTMLImageElement).src = "/figma-images/catalog-1.png";
                       }}
                     />
 
@@ -457,6 +617,13 @@ export function CloudflareImageUploader({
                         className="h-3.5 w-3.5 accent-lagoon-700 cursor-pointer"
                       />
                     </label>
+
+                    {/* Badge nguồn ảnh */}
+                    {isDrive && (
+                      <span className="absolute bottom-2 left-2 z-10 rounded bg-ink-900/70 px-1.5 py-0.5 text-[9px] font-medium text-sand-50 backdrop-blur-xs">
+                        Drive
+                      </span>
+                    )}
 
                     {/* Nút xóa đơn lẻ */}
                     <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -537,6 +704,85 @@ export function CloudflareImageUploader({
           </div>
         )}
       </div>
+
+      {/* Modal Cài Đặt Google Drive Webhook */}
+      {showConfigModal && (
+        <div className="fixed inset-0 z-90 flex items-center justify-center bg-ink-900/60 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-lg rounded-hair bg-sand-50 p-6 shadow-2xl border border-sand-300 animate-reveal-up max-h-[90vh] overflow-y-auto space-y-4">
+            <div className="flex items-center justify-between border-b border-sand-200 pb-3">
+              <h3 className="font-display text-base font-semibold text-ink-900">
+                Cấu hình lưu ảnh lên Google Drive
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowConfigModal(false)}
+                className="text-ink-500 hover:text-ink-900"
+              >
+                <CloseIcon className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="text-xs text-ink-700 space-y-3">
+              <p>
+                Để ảnh tự động tải lên Google Drive của bạn và lưu link vào Cloudflare D1 (không lo hết hạn ngạch DB), bạn chỉ cần triển khai 1 Google Apps Script nhỏ (miễn phí 100%):
+              </p>
+
+              <div className="rounded-hair bg-sand-100 p-3 space-y-2 border border-sand-200">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-ink-900">Mã Google Apps Script (Apps Script code):</span>
+                  <button
+                    type="button"
+                    onClick={handleCopyScriptTemplate}
+                    className="text-lagoon-700 hover:underline font-medium"
+                  >
+                    {isCopiedScript ? "✓ Đã sao chép!" : "Sao chép mã"}
+                  </button>
+                </div>
+                <pre className="max-h-36 overflow-y-auto font-mono text-[10px] bg-sand-200 p-2 rounded text-ink-800">
+                  {GOOGLE_APPS_SCRIPT_TEMPLATE}
+                </pre>
+              </div>
+
+              <ol className="list-decimal list-inside space-y-1 text-2xs text-ink-600">
+                <li>Truy cập <a href="https://script.google.com" target="_blank" rel="noreferrer" className="text-lagoon-700 underline">script.google.com</a> và tạo project mới.</li>
+                <li>Dán đoạn mã trên vào rồi bấm <strong>Triển khai (Deploy) &gt; Tùy chọn triển khai mới (New deployment)</strong>.</li>
+                <li>Chọn loại: <strong>Ứng dụng web (Web app)</strong>, quyền truy cập: <strong>Bất kỳ ai (Anyone)</strong>.</li>
+                <li>Sao chép URL ứng dụng web nhận được và dán vào ô bên dưới:</li>
+              </ol>
+
+              <div>
+                <label className="block text-2xs font-semibold text-ink-800 mb-1">
+                  Google Apps Script Webhook URL:
+                </label>
+                <input
+                  type="url"
+                  placeholder="https://script.google.com/macros/s/AKfycb.../exec"
+                  value={webhookUrl}
+                  onChange={(e) => setWebhookUrl(e.target.value)}
+                  className="w-full rounded-hair border border-sand-300 bg-sand-100 p-2 font-mono text-xs text-ink-900 focus:outline-none focus:border-ink-900"
+                />
+              </div>
+            </div>
+
+            <div className="mt-4 flex justify-end gap-2 border-t border-sand-200 pt-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowConfigModal(false)}
+              >
+                Đóng
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleSaveWebhook}
+              >
+                Lưu cấu hình
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Modal (Đơn lẻ) */}
       {deleteTarget && (
