@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAdminAuth } from "@/lib/admin-auth";
 import { useAdminStore, type DiscountEvent } from "@/lib/admin-store";
-import { readOrders, updateOrderStatus, updateOrderShipping, ORDERS_UPDATED_EVENT } from "@/lib/orders";
+import { readOrders, updateOrderShipping, ORDERS_UPDATED_EVENT } from "@/lib/orders";
+import { updateOrderStatusApi } from "@/lib/api";
 import type { Category, Product, PlacedOrder, OrderStatus } from "@/types";
 import { Button } from "@/components/ui/Button";
 import {
@@ -73,12 +74,10 @@ export default function AdminBoardPage() {
     };
   }, []);
 
-  const handleUpdateOrderStatus = (code: string, newStatus: OrderStatus) => {
-    const ok = updateOrderStatus(code, newStatus);
-    if (ok) {
-      loadOrders();
-      showToast(`Đã cập nhật trạng thái đơn ${code}!`);
-    }
+  const handleUpdateOrderStatus = async (code: string, newStatus: OrderStatus) => {
+    await updateOrderStatusApi(code, newStatus);
+    loadOrders();
+    showToast(`Đã cập nhật trạng thái đơn ${code}!`);
   };
 
   const handleUpdateShipping = (

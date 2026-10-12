@@ -199,6 +199,22 @@ describe("server worker and D1 schema", () => {
     expect(data.order.items.length).toBe(1);
   });
 
+  it("PATCH /api/orders/:code updates order status in D1", async () => {
+    const { db } = createMockDb();
+    const env: Env = { DB: db };
+
+    const req = new Request("http://localhost/api/orders/LM-ABC123", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "processing" }),
+    });
+    const res = await worker.fetch(req, env);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { success: boolean; status: string };
+    expect(data.success).toBe(true);
+    expect(data.status).toBe("confirmed");
+  });
+
   it("POST /api/events logs event with hashed IP, not raw IP", async () => {
     const { db, execCalls } = createMockDb();
     const env: Env = { DB: db };
