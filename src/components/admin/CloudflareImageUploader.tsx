@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   type MediaImage,
   getMediaImages,
-  uploadMediaImage,
+  uploadMultipleMediaImages,
   deleteMediaImage,
 } from "@/lib/media-api";
 import { Button } from "@/components/ui/Button";
@@ -16,24 +16,35 @@ import {
   SparkleIcon,
 } from "@/components/ui/icons";
 
-interface CloudflareImageUploaderProps {
-  /** Callback tùy chọn khi người dùng bấm chọn ảnh để điền vào form sản phẩm */
+export interface CloudflareImageUploaderProps {
+  /** Callback khi người dùng bấm chọn 1 ảnh để điền vào form sản phẩm */
   onSelectImage?: (url: string) => void;
+  /** Callback khi người dùng bấm chèn nhiều ảnh đã chọn vào form sản phẩm */
+  onSelectImages?: (urls: string[]) => void;
   className?: string;
 }
 
 export function CloudflareImageUploader({
   onSelectImage,
+  onSelectImages,
   className = "",
 }: CloudflareImageUploaderProps) {
   const [images, setImages] = useState<MediaImage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{
+    total: number;
+    current: number;
+    filename: string;
+  } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<MediaImage | null>(null);
+  const [isBatchDeleting, setIsBatchDeleting] = useState(false);
+  const [showBatchDeleteModal, setShowBatchDeleteModal] = useState(false);
+  const [selectedUrls, setSelectedUrls] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const showToast = (msg: string) => {
@@ -62,37 +73,43 @@ export function CloudflareImageUploader({
   }, []);
 
   const handleFiles = async (files: FileList | File[]) => {
-    const fileList = Array.from(files).filter((f) => f.type.startsWith("image/"));
-    if (fileList.length === 0) {
-      showToast("Vui lòng chọn file hình ảnh hợp lệ (PNG, JPG, WEBP, GIF, SVG).");
-      return;
-    }
+    const rawList = Array.from(files);
+    if (rawList.length === 0) return;
 
     setIsUploading(true);
-    let successCount = 0;
+    setUploadProgress({
+      total: rawList.length,
+      current: 1,
+      filename: rawList[0].name,
+    });
 
-    for (const file of fileList) {
-      try {
-        const result = await uploadMediaImage(file);
-        if (result.success) {
-          successCount++;
-        }
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        showToast(`Lỗi: ${msg}`);
+    const { successful, failed } = await uploadMultipleMediaImages(
+      rawList,
+      (progress) => {
+        setUploadProgress(progress);
       }
-    }
+    );
 
     setIsUploading(false);
-    if (successCount > 0) {
-      showToast(`Đã tải lên thành công ${successCount} ảnh lên Cloudflare!`);
+    setUploadProgress(null);
+
+    if (successful.length > 0) {
+      showToast(`Đã tải lên thành công ${successful.length}/${rawList.length} ảnh lên Cloudflare!`);
       await loadImages();
+    }
+
+    if (failed.length > 0) {
+      const firstErr = failed[0].error;
+      showToast(
+        failed.length === 1
+          ? `Lỗi tải ảnh: ${firstErr}`
+          : `Có ${failed.length} ảnh bị lỗi (${firstErr})`
+      );
     }
   };
 
   const handleCopyUrl = async (url: string, id: string) => {
     try {
-      // Nếu URL là relative, chuyển thành full URL cho tiện paste
       const fullUrl = url.startsWith("http")
         ? url
         : typeof window !== "undefined"
@@ -113,6 +130,7 @@ export function CloudflareImageUploader({
       const ok = await deleteMediaImage(deleteTarget.id);
       if (ok) {
         setImages((prev) => prev.filter((img) => img.id !== deleteTarget.id));
+        setSelectedUrls((prev) => prev.filter((u) => u !== deleteTarget.url));
         showToast(`Đã xóa ảnh "${deleteTarget.filename}"!`);
       } else {
         showToast("Xóa ảnh không thành công, vui lòng thử lại.");
@@ -121,6 +139,27 @@ export function CloudflareImageUploader({
       showToast("Lỗi khi xóa ảnh.");
     } finally {
       setDeleteTarget(null);
+    }
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedUrls.length === 0) return;
+    setIsBatchDeleting(true);
+    try {
+      const targets = images.filter((img) => selectedUrls.includes(img.url));
+      let successCount = 0;
+      for (const img of targets) {
+        const ok = await deleteMediaImage(img.id);
+        if (ok) successCount++;
+      }
+      setImages((prev) => prev.filter((img) => !selectedUrls.includes(img.url)));
+      setSelectedUrls([]);
+      showToast(`Đã xóa ${successCount} ảnh khỏi Cloudflare!`);
+    } catch {
+      showToast("Lỗi khi xóa hàng loạt ảnh.");
+    } finally {
+      setIsBatchDeleting(false);
+      setShowBatchDeleteModal(false);
     }
   };
 
@@ -135,6 +174,21 @@ export function CloudflareImageUploader({
     return img.filename.toLowerCase().includes(q) || img.id.toLowerCase().includes(q);
   });
 
+  const allFilteredSelected =
+    filteredImages.length > 0 &&
+    filteredImages.every((img) => selectedUrls.includes(img.url));
+
+  const handleToggleSelectAll = () => {
+    if (allFilteredSelected) {
+      setSelectedUrls((prev) =>
+        prev.filter((u) => !filteredImages.some((img) => img.url === u))
+      );
+    } else {
+      const set = new Set([...selectedUrls, ...filteredImages.map((img) => img.url)]);
+      setSelectedUrls(Array.from(set));
+    }
+  };
+
   return (
     <div className={`space-y-6 ${className}`}>
       {/* Toast Notification */}
@@ -142,7 +196,7 @@ export function CloudflareImageUploader({
         <div
           role="status"
           aria-live="polite"
-          className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-hair bg-ink-900 px-5 py-3 text-xs text-sand-50 shadow-xl animate-reveal-up"
+          className="fixed bottom-6 right-6 z-90 flex items-center gap-2 rounded-hair bg-ink-900 px-5 py-3 text-xs text-sand-50 shadow-xl animate-reveal-up"
         >
           <CheckIcon className="h-4 w-4 text-lagoon-400" />
           <span>{toast}</span>
@@ -180,7 +234,7 @@ export function CloudflareImageUploader({
         </div>
       </div>
 
-      {/* Drag & Drop Upload Zone */}
+      {/* Drag & Drop Upload Zone (Hỗ trợ upload nhiều ảnh) */}
       <div
         onDragOver={(e) => {
           e.preventDefault();
@@ -203,7 +257,7 @@ export function CloudflareImageUploader({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept="image/png,image/jpeg,image/webp,image/gif,.png,.jpg,.jpeg,.webp,.gif"
           multiple
           className="hidden"
           onChange={(e) => {
@@ -221,8 +275,30 @@ export function CloudflareImageUploader({
           Kéo thả ảnh vào đây hoặc nhấp để tải lên
         </h3>
         <p className="mt-1 text-xs text-ink-500 max-w-sm">
-          Hỗ trợ định dạng PNG, JPG, WEBP, GIF, SVG. Dung lượng tối đa 10MB mỗi ảnh.
+          Hỗ trợ định dạng PNG, JPG, WEBP, GIF. Cho phép chọn nhiều ảnh cùng lúc, tối đa 10MB mỗi ảnh.
         </p>
+
+        {/* Thanh tiến trình tải nhiều ảnh */}
+        {uploadProgress && (
+          <div className="w-full max-w-md mt-4 space-y-1.5 rounded-hair border border-sand-300 bg-sand-100 p-3 text-left animate-reveal-up">
+            <div className="flex items-center justify-between text-2xs text-ink-700">
+              <span className="font-medium truncate max-w-[240px]">
+                Đang tải ({uploadProgress.current}/{uploadProgress.total}): {uploadProgress.filename}
+              </span>
+              <span className="font-mono text-lagoon-700 font-semibold">
+                {Math.round((uploadProgress.current / uploadProgress.total) * 100)}%
+              </span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-sand-200">
+              <div
+                className="h-full bg-lagoon-600 transition-all duration-300"
+                style={{
+                  width: `${(uploadProgress.current / uploadProgress.total) * 100}%`,
+                }}
+              />
+            </div>
+          </div>
+        )}
 
         <div className="mt-4 flex items-center gap-3">
           <Button
@@ -256,17 +332,73 @@ export function CloudflareImageUploader({
             </span>
           </div>
 
-          <div className="relative w-full sm:w-64">
-            <input
-              type="text"
-              placeholder="Tìm theo tên file..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-hair border border-sand-300 bg-sand-50 pl-8 pr-3 py-1.5 text-xs text-ink-900 focus:outline-none focus:border-ink-900"
-            />
-            <SearchIcon className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-ink-400" />
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            {filteredImages.length > 0 && (
+              <button
+                type="button"
+                onClick={handleToggleSelectAll}
+                className="rounded-hair border border-sand-300 bg-sand-50 px-2.5 py-1.5 text-xs text-ink-700 hover:bg-sand-100 whitespace-nowrap"
+              >
+                {allFilteredSelected ? "Bỏ chọn tất cả" : "Chọn tất cả"}
+              </button>
+            )}
+
+            <div className="relative flex-1 sm:w-64">
+              <input
+                type="text"
+                placeholder="Tìm theo tên file..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full rounded-hair border border-sand-300 bg-sand-50 pl-8 pr-3 py-1.5 text-xs text-ink-900 focus:outline-none focus:border-ink-900"
+              />
+              <SearchIcon className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-ink-400" />
+            </div>
           </div>
         </div>
+
+        {/* Thanh tác vụ khi chọn nhiều ảnh */}
+        {selectedUrls.length > 0 && (
+          <div className="sticky top-2 z-30 flex flex-wrap items-center justify-between gap-2 rounded-hair border border-lagoon-600 bg-lagoon-50 px-4 py-2.5 shadow-md animate-reveal-up">
+            <div className="flex items-center gap-2 text-xs font-medium text-lagoon-900">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-lagoon-700 text-sand-50 text-[11px] font-bold">
+                {selectedUrls.length}
+              </span>
+              <span>ảnh đã được chọn</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedUrls([])}
+                className="text-xs text-ink-600 hover:text-ink-900 px-2 py-1"
+              >
+                Bỏ chọn
+              </button>
+              {(onSelectImages || onSelectImage) && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => {
+                    if (onSelectImages) {
+                      onSelectImages(selectedUrls);
+                    } else if (onSelectImage && selectedUrls[0]) {
+                      onSelectImage(selectedUrls[0]);
+                    }
+                    setSelectedUrls([]);
+                  }}
+                >
+                  ✓ Thêm {selectedUrls.length} ảnh vào sản phẩm
+                </Button>
+              )}
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => setShowBatchDeleteModal(true)}
+              >
+                Xóa {selectedUrls.length} ảnh
+              </Button>
+            </div>
+          </div>
+        )}
 
         {isLoading ? (
           <div className="rounded-hair border border-sand-300 bg-sand-100 p-10 text-center text-xs text-ink-500">
@@ -282,10 +414,16 @@ export function CloudflareImageUploader({
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
             {filteredImages.map((img) => {
               const isCopied = copiedId === img.id;
+              const isSelected = selectedUrls.includes(img.url);
+
               return (
                 <div
                   key={img.id}
-                  className="group relative flex flex-col overflow-hidden rounded-hair border border-sand-300 bg-sand-50 shadow-2xs hover:border-ink-900/60 transition-all"
+                  className={`group relative flex flex-col overflow-hidden rounded-hair border bg-sand-50 shadow-2xs transition-all ${
+                    isSelected
+                      ? "border-lagoon-600 ring-2 ring-lagoon-600"
+                      : "border-sand-300 hover:border-ink-900/60"
+                  }`}
                 >
                   {/* Thumbnail */}
                   <div className="relative aspect-square w-full overflow-hidden bg-sand-200">
@@ -298,6 +436,29 @@ export function CloudflareImageUploader({
                         (e.target as HTMLImageElement).src = "/placeholder-product.jpg";
                       }}
                     />
+
+                    {/* Checkbox chọn nhiều ảnh */}
+                    <label
+                      className="absolute top-2 left-2 z-10 flex h-6 w-6 items-center justify-center rounded-hair bg-sand-50/90 shadow-sm cursor-pointer hover:bg-sand-100"
+                      onClick={(e) => e.stopPropagation()}
+                      title="Chọn ảnh"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          if (e.target.checked) {
+                            setSelectedUrls((prev) => [...prev, img.url]);
+                          } else {
+                            setSelectedUrls((prev) => prev.filter((u) => u !== img.url));
+                          }
+                        }}
+                        className="h-3.5 w-3.5 accent-lagoon-700 cursor-pointer"
+                      />
+                    </label>
+
+                    {/* Nút xóa đơn lẻ */}
                     <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         type="button"
@@ -353,7 +514,7 @@ export function CloudflareImageUploader({
                           type="button"
                           onClick={() => onSelectImage(img.url)}
                           className="rounded-hair bg-lagoon-600 px-2 py-1 text-[11px] font-medium text-sand-50 hover:bg-lagoon-700 transition-colors"
-                          title="Chọn ảnh này cho sản phẩm"
+                          title="Chọn ảnh này làm ảnh chính"
                         >
                           Chọn
                         </button>
@@ -377,9 +538,9 @@ export function CloudflareImageUploader({
         )}
       </div>
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete Confirmation Modal (Đơn lẻ) */}
       {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/60 p-4 backdrop-blur-xs">
+        <div className="fixed inset-0 z-90 flex items-center justify-center bg-ink-900/60 p-4 backdrop-blur-xs">
           <div className="w-full max-w-sm rounded-hair bg-sand-50 p-6 shadow-2xl border border-sand-300 animate-reveal-up">
             <h3 className="font-display text-base text-ink-900">Xác nhận xóa ảnh?</h3>
             <p className="mt-2 text-xs text-ink-600">
@@ -401,6 +562,37 @@ export function CloudflareImageUploader({
                 onClick={handleDelete}
               >
                 Xóa ngay
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Batch Delete Confirmation Modal (Hàng loạt) */}
+      {showBatchDeleteModal && (
+        <div className="fixed inset-0 z-90 flex items-center justify-center bg-ink-900/60 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-sm rounded-hair bg-sand-50 p-6 shadow-2xl border border-sand-300 animate-reveal-up">
+            <h3 className="font-display text-base text-ink-900">Xác nhận xóa hàng loạt?</h3>
+            <p className="mt-2 text-xs text-ink-600">
+              Bạn có chắc chắn muốn xóa <strong className="text-ink-900 font-semibold">{selectedUrls.length} ảnh</strong> đã chọn khỏi Cloudflare? Thao tác này không thể hoàn tác.
+            </p>
+
+            <div className="mt-6 flex justify-end gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={isBatchDeleting}
+                onClick={() => setShowBatchDeleteModal(false)}
+              >
+                Hủy
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                disabled={isBatchDeleting}
+                onClick={handleBatchDelete}
+              >
+                {isBatchDeleting ? "Đang xóa..." : "Xóa tất cả"}
               </Button>
             </div>
           </div>

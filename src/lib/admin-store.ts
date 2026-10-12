@@ -1,7 +1,7 @@
 import type { Category, Product } from "@/types";
 import { CATEGORIES } from "@/data/categories";
 import { PRODUCTS } from "@/data/products";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 
 export interface DiscountEvent {
   id: string;
@@ -265,10 +265,14 @@ export function useAdminStore() {
     return () => window.removeEventListener(ADMIN_UPDATE_EVENT, handleUpdate);
   }, []);
 
+  const products = useMemo(() => getAdminProducts(), [version]);
+  const categories = useMemo(() => getAdminCategories(), [version]);
+  const discounts = useMemo(() => getAdminDiscountEvents(), [version]);
+
   return {
-    products: getAdminProducts(),
-    categories: getAdminCategories(),
-    discounts: getAdminDiscountEvents(),
+    products,
+    categories,
+    discounts,
     saveProduct: saveAdminProduct,
     deleteProduct: deleteAdminProduct,
     saveCategory: saveAdminCategory,

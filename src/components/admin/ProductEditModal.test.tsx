@@ -91,4 +91,36 @@ describe("ProductEditModal", () => {
     expect(onSave).toHaveBeenCalledTimes(1);
     expect(onSave.mock.calls[0][0].name).toBe("Đầm maxi hoa cúc");
   });
+
+  it("giữ nguyên ảnh mới sửa, không bị reset về ảnh cũ khi component cha re-render với categories mới", () => {
+    const { rerender } = render(
+      <ProductEditModal
+        isOpen={true}
+        product={mockProduct}
+        categories={mockCategories}
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+      />
+    );
+
+    // Người dùng đổi link ảnh
+    const imagesTextarea = screen.getByLabelText(/Đường dẫn ảnh/i);
+    fireEvent.change(imagesTextarea, { target: { value: "/new-uploaded-image.jpg" } });
+    expect(imagesTextarea).toHaveValue("/new-uploaded-image.jpg");
+
+    // Giả lập AdminBoardPage re-render tạo mảng categories mới
+    const newCategoriesRef: Category[] = [...mockCategories];
+    rerender(
+      <ProductEditModal
+        isOpen={true}
+        product={mockProduct}
+        categories={newCategoriesRef}
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+      />
+    );
+
+    // Giá trị ô ảnh PHẢI vẫn là ảnh mới, không bị reset về /test-1.jpg
+    expect(screen.getByLabelText(/Đường dẫn ảnh/i)).toHaveValue("/new-uploaded-image.jpg");
+  });
 });

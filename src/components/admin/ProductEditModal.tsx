@@ -40,6 +40,7 @@ export function ProductEditModal({
   });
 
   useEffect(() => {
+    if (!isOpen) return;
     if (product) {
       setForm({
         id: product.id,
@@ -69,7 +70,9 @@ export function ProductEditModal({
         selectedSizes: ["M", "L"],
       });
     }
-  }, [product, categories, isOpen]);
+    // Chỉ khởi tạo form khi mở modal hoặc đổi ID sản phẩm, không reset khi categories/parent re-render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product?.id, isOpen]);
 
   if (!isOpen) return null;
 
@@ -451,6 +454,21 @@ export function ProductEditModal({
                 });
                 setIsMediaPickerOpen(false);
                 showToast?.("Đã chọn làm ảnh chính của sản phẩm!");
+              }}
+              onSelectImages={(urls) => {
+                setForm((prev) => {
+                  const currentUrls = prev.images
+                    .split("\n")
+                    .map((s) => s.trim())
+                    .filter(Boolean);
+                  const newUrls = [...urls, ...currentUrls.filter((u) => !urls.includes(u))];
+                  return {
+                    ...prev,
+                    images: newUrls.join("\n"),
+                  };
+                });
+                setIsMediaPickerOpen(false);
+                showToast?.(`Đã thêm ${urls.length} ảnh vào sản phẩm!`);
               }}
             />
           </div>
