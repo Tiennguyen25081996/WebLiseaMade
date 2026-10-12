@@ -263,4 +263,20 @@ describe("AdminBoardPage", () => {
     expect(screen.getByText("Cài đặt hình ảnh & nội dung Trang chủ")).toBeInTheDocument();
     expect(screen.getByText(/1\. Banner Hero/)).toBeInTheDocument();
   });
+
+  it("chuyển sang tab Chatbot AI và hiển thị cấu hình bot", () => {
+    loginAdmin("admin", "admin123", true);
+
+    render(
+      <MemoryRouter>
+        <AdminBoardPage />
+      </MemoryRouter>
+    );
+
+    const chatbotTabBtn = screen.getByRole("button", { name: /Chatbot AI/ });
+    fireEvent.click(chatbotTabBtn);
+
+    expect(screen.getByText("Cấu hình Chatbot AI Tư Vấn Bán Hàng")).toBeInTheDocument();
+    expect(screen.getByText("Thử nghiệm Chatbot Sandbox")).toBeInTheDocument();
+  });
 });

@@ -27,8 +27,9 @@ import { CategoryEditModal } from "@/components/admin/CategoryEditModal";
 import { DiscountEditModal } from "@/components/admin/DiscountEditModal";
 import { ConfirmDeleteModal } from "@/components/admin/ConfirmDeleteModal";
 import { AdminHomeSettingsTab } from "@/components/admin/AdminHomeSettingsTab";
+import { AdminChatbotTab } from "@/components/admin/AdminChatbotTab";
 
-type AdminTab = "overview" | "products" | "categories" | "discounts" | "media" | "orders" | "home_settings";
+type AdminTab = "overview" | "products" | "categories" | "discounts" | "media" | "orders" | "home_settings" | "chatbot";
 
 export default function AdminBoardPage() {
   const location = useLocation();
@@ -93,6 +94,7 @@ export default function AdminBoardPage() {
     categories,
     discounts,
     homeSettings,
+    chatbotConfig,
     saveProduct,
     deleteProduct,
     saveCategory,
@@ -102,6 +104,8 @@ export default function AdminBoardPage() {
     deleteDiscount,
     saveHomeSettings,
     resetHomeSettings,
+    saveChatbotConfig,
+    resetChatbotConfig,
     resetToDefaults,
   } = useAdminStore();
 
@@ -342,6 +346,17 @@ export default function AdminBoardPage() {
           >
             <span>🏠 Cài đặt Trang chủ</span>
           </button>
+          <button
+            type="button"
+            onClick={() => setCurrentTab("chatbot")}
+            className={`tap-feedback rounded-hair px-4 py-2 text-xs font-medium transition-all flex items-center gap-1.5 ${
+              currentTab === "chatbot"
+                ? "bg-ink-900 text-sand-50 shadow-2xs"
+                : "bg-sand-100 text-ink-700 hover:bg-sand-200"
+            }`}
+          >
+            <span>🤖 Chatbot AI</span>
+          </button>
         </div>
 
         {/* Tab Actions */}
@@ -498,6 +513,21 @@ export default function AdminBoardPage() {
             }}
             onReset={() => {
               resetHomeSettings();
+            }}
+            showToast={showToast}
+          />
+        </div>
+      )}
+
+      {currentTab === "chatbot" && (
+        <div className="mt-6 animate-fade-in">
+          <AdminChatbotTab
+            config={chatbotConfig}
+            onSave={(newCfg) => {
+              saveChatbotConfig(newCfg);
+            }}
+            onReset={() => {
+              resetChatbotConfig();
             }}
             showToast={showToast}
           />

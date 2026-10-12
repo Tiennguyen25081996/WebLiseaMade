@@ -3,6 +3,12 @@ import { CATEGORIES } from "@/data/categories";
 import { PRODUCTS } from "@/data/products";
 import { useEffect, useState, useMemo } from "react";
 import { normalizeGoogleDriveUrl } from "@/lib/media-api";
+import {
+  type ChatbotConfig,
+  getChatbotConfig,
+  saveChatbotConfig,
+  resetChatbotConfig,
+} from "@/lib/chatbot-service";
 
 export interface DiscountEvent {
   id: string;
@@ -388,6 +394,7 @@ export function resetAdminData(): void {
     localStorage.removeItem(STORAGE_KEY_CATEGORIES);
     localStorage.removeItem(STORAGE_KEY_DISCOUNTS);
     localStorage.removeItem(STORAGE_KEY_HOMEPAGE);
+    resetChatbotConfig();
   }
   notifySubscribers();
 }
@@ -409,12 +416,14 @@ export function useAdminStore() {
   const categories = useMemo(() => getAdminCategories(), [version]);
   const discounts = useMemo(() => getAdminDiscountEvents(), [version]);
   const homeSettings = useMemo(() => getAdminHomePageSettings(), [version]);
+  const chatbotConfig = useMemo(() => getChatbotConfig(), [version]);
 
   return {
     products,
     categories,
     discounts,
     homeSettings,
+    chatbotConfig,
     saveProduct: saveAdminProduct,
     deleteProduct: deleteAdminProduct,
     saveCategory: saveAdminCategory,
@@ -424,6 +433,15 @@ export function useAdminStore() {
     deleteDiscount: deleteAdminDiscountEvent,
     saveHomeSettings: saveAdminHomePageSettings,
     resetHomeSettings: resetAdminHomePageSettings,
+    saveChatbotConfig: (cfg: ChatbotConfig) => {
+      saveChatbotConfig(cfg);
+      notifySubscribers();
+      return cfg;
+    },
+    resetChatbotConfig: () => {
+      resetChatbotConfig();
+      notifySubscribers();
+    },
     resetToDefaults: resetAdminData,
     getProductsUsingImage,
     removeImageUrlFromProducts,
