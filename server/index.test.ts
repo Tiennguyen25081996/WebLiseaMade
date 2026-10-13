@@ -23,6 +23,11 @@ function createMockDb(): { db: D1Database; execCalls: string[]; batchCalls: D1Pr
           code: String(bindings[0] ?? "LM-123456"),
           customer_name: "Nguyễn Văn A",
           phone: "0901234567",
+          email: "nguyen@example.com",
+          address: "123 Đường ABC",
+          district: "Ba Đình",
+          province: "Hà Nội",
+          note: "Giao giờ hành chính",
           subtotal: 100000,
           shipping_fee: 20000,
           discount: 0,
@@ -80,6 +85,15 @@ function createMockDb(): { db: D1Database; execCalls: string[]; batchCalls: D1Pr
               url: "/api/images/img_1",
               created_at: "2026-10-11T00:00:00Z",
             },
+          ] as T[],
+        };
+      }
+      if (sql.includes("FROM site_settings")) {
+        return {
+          success: true,
+          results: [
+            { key: "theme", value: JSON.stringify("dark") },
+            { key: "admin_credentials", value: JSON.stringify({ admin: { pass: "supersecret" } }) },
           ] as T[],
         };
       }
@@ -207,13 +221,26 @@ describe("server worker and D1 schema", () => {
     expect(data.order.items.length).toBe(1);
   });
 
-  it("PATCH /api/orders/:code updates order status in D1", async () => {
+  it("PATCH /api/orders/:code updates order status in D1 with admin auth", async () => {
     const { db } = createMockDb();
     const env: Env = { DB: db };
 
-    const req = new Request("http://localhost/api/orders/LM-ABC123", {
+    // Thử không có token -> 401
+    const unauthReq = new Request("http://localhost/api/orders/LM-ABC123", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "processing" }),
+    });
+    const unauthRes = await worker.fetch(unauthReq, env);
+    expect(unauthRes.status).toBe(401);
+
+    // Có token -> 200
+    const req = new Request("http://localhost/api/orders/LM-ABC123", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer test-admin-token",
+      },
       body: JSON.stringify({ status: "processing" }),
     });
     const res = await worker.fetch(req, env);
@@ -251,9 +278,21 @@ describe("server worker and D1 schema", () => {
     const { db, execCalls } = createMockDb();
     const env: Env = { DB: db };
 
-    const req = new Request("http://localhost/api/upload", {
+    // Không có admin auth -> 401
+    const unauthReq = new Request("http://localhost/api/upload", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filename: "test.png", mimeType: "image/png" }),
+    });
+    const unauthRes = await worker.fetch(unauthReq, env);
+    expect(unauthRes.status).toBe(401);
+
+    const req = new Request("http://localhost/api/upload", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer test-admin-token",
+      },
       body: JSON.stringify({
         filename: "test.png",
         mimeType: "image/png",
@@ -277,7 +316,10 @@ describe("server worker and D1 schema", () => {
 
     const req = new Request("http://localhost/api/upload", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer test-admin-token",
+      },
       body: JSON.stringify({
         url: "https://lh3.googleusercontent.com/d/1a2b3c4d5e",
         filename: "gdrive-summer-dress.jpg",
@@ -301,7 +343,10 @@ describe("server worker and D1 schema", () => {
 
     const req = new Request("http://localhost/api/upload", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer test-admin-token",
+      },
       body: JSON.stringify({
         filename: "fake.png",
         mimeType: "image/png",
@@ -349,11 +394,19 @@ describe("server worker and D1 schema", () => {
     expect(res.headers.get("Location")).toBe("https://lh3.googleusercontent.com/d/1XyZ");
   });
 
-  it("DELETE /api/images/:id removes image from media_files", async () => {
+  it("DELETE /api/images/:id removes image from media_files with admin auth", async () => {
     const { db, execCalls } = createMockDb();
     const env: Env = { DB: db };
 
-    const req = new Request("http://localhost/api/images/img_1", { method: "DELETE" });
+    // Không có admin auth -> 401
+    const unauthReq = new Request("http://localhost/api/images/img_1", { method: "DELETE" });
+    const unauthRes = await worker.fetch(unauthReq, env);
+    expect(unauthRes.status).toBe(401);
+
+    const req = new Request("http://localhost/api/images/img_1", {
+      method: "DELETE",
+      headers: { "Authorization": "Bearer test-admin-token" },
+    });
     const res = await worker.fetch(req, env);
     expect(res.status).toBe(200);
     const data = (await res.json()) as { success: boolean; id: string };
@@ -385,7 +438,11 @@ describe("server worker and D1 schema", () => {
     for (let i = 0; i < 45; i++) {
       const req = new Request("http://localhost/api/site-settings", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "CF-Connecting-IP": "1.2.3.4" },
+        headers: {
+          "Content-Type": "application/json",
+          "CF-Connecting-IP": "1.2.3.4",
+          "Authorization": "Bearer test-admin-token",
+        },
         body: JSON.stringify({ key: "test", value: "ok" }),
       });
       lastRes = await worker.fetch(req, env);
@@ -428,5 +485,330 @@ describe("server worker and D1 schema", () => {
     expect(res.headers.get("X-Frame-Options")).toBe("DENY");
     expect(res.headers.get("X-XSS-Protection")).toBe("1; mode=block");
     expect(res.headers.get("Referrer-Policy")).toBe("strict-origin-when-cross-origin");
+  });
+
+  it("POST /api/admin/login xác thực tài khoản và cấp signed token", async () => {
+    const { db } = createMockDb();
+    const env: Env = { DB: db };
+
+    const req = new Request("http://localhost/api/admin/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: "admin", password: "admin123" }),
+    });
+
+    const res = await worker.fetch(req, env);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { success: boolean; token: string; user: { username: string } };
+    expect(data.success).toBe(true);
+    expect(data.token).toMatch(/^adm\.admin\.\d+\./);
+    expect(data.user.username).toBe("admin");
+  });
+
+  it("POST /api/admin/login từ chối khi nhập sai mật khẩu", async () => {
+    const { db } = createMockDb();
+    const env: Env = { DB: db };
+
+    const req = new Request("http://localhost/api/admin/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: "admin", password: "sai_mat_khau" }),
+    });
+
+    const res = await worker.fetch(req, env);
+    expect(res.status).toBe(401);
+    const data = (await res.json()) as { success: boolean; error: string };
+    expect(data.success).toBe(false);
+    expect(data.error).toContain("không chính xác");
+  });
+
+  it("GET /api/orders/:code che giấu PII (tên, sđt, địa chỉ) cho người tra cứu công khai", async () => {
+    const { db } = createMockDb();
+    const env: Env = { DB: db };
+
+    const req = new Request("http://localhost/api/orders/LM-123456", { method: "GET" });
+    const res = await worker.fetch(req, env);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as {
+      success: boolean;
+      order: {
+        customer_name: string;
+        phone: string;
+        email: string;
+        address: string;
+        is_masked: boolean;
+      };
+    };
+
+    expect(data.success).toBe(true);
+    expect(data.order.is_masked).toBe(true);
+    expect(data.order.customer_name).toContain("***");
+    expect(data.order.phone).toContain("****");
+    expect(data.order.address).toContain("***");
+    expect((data.order as Record<string, unknown>).note).toBeUndefined();
+  });
+
+  it("GET /api/orders/:code mở khóa PII khi cung cấp đúng số điện thoại đặt hàng", async () => {
+    const { db } = createMockDb();
+    const env: Env = { DB: db };
+
+    // Số điện thoại trong mock DB là 0901234567
+    const req = new Request("http://localhost/api/orders/LM-123456?phone=0901234567", { method: "GET" });
+    const res = await worker.fetch(req, env);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as {
+      success: boolean;
+      order: {
+        customer_name: string;
+        phone: string;
+        email: string;
+        address: string;
+        note?: string;
+        is_masked: boolean;
+      };
+    };
+
+    expect(data.success).toBe(true);
+    expect(data.order.is_masked).toBe(false);
+    expect(data.order.customer_name).toBe("Nguyễn Văn A");
+    expect(data.order.phone).toBe("0901234567");
+    expect(data.order.address).toBe("123 Đường ABC");
+    expect(data.order.note).toBe("Giao giờ hành chính");
+  });
+
+  it("POST /api/orders từ chối khi phát hiện gian lận đơn giá (price tampering)", async () => {
+    const { db } = createMockDb();
+    const env: Env = { DB: db };
+
+    // p1 trong PRODUCTS có giá 389000, kẻ tấn công sửa thành 1000
+    const tamperedBody = {
+      code: "LM-TAMPER",
+      customerName: "Hacker X",
+      phone: "0901234567",
+      email: "x@example.com",
+      address: "123 Đường H",
+      province: "Hà Nội",
+      district: "Ba Đình",
+      paymentMethod: "cod",
+      subtotal: 1000,
+      shippingFee: 20000,
+      discount: 0,
+      total: 21000,
+      items: [
+        {
+          productId: "p1",
+          variantId: "v-p1-m",
+          productName: "Áo sơ mi họa tiết Hawaii",
+          variantLabel: "M",
+          price: 1000, // Sai lệch với niêm yết 389000
+          quantity: 1,
+          lineTotal: 1000,
+        },
+      ],
+    };
+
+    const req = new Request("http://localhost/api/orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(tamperedBody),
+    });
+
+    const res = await worker.fetch(req, env);
+    expect(res.status).toBe(400);
+    const data = (await res.json()) as { success: boolean; error: string };
+    expect(data.success).toBe(false);
+    expect(data.error).toContain("không khớp giá niêm yết");
+  });
+
+  it("POST /api/orders trả về 409 conflict khi mã đơn hàng bị trùng lặp", async () => {
+    const { db } = createMockDb();
+    // Giả lập lỗi UNIQUE constraint từ D1 batch
+    db.batch = vi.fn().mockRejectedValue(new Error("UNIQUE constraint failed: orders.code"));
+    const env: Env = { DB: db };
+
+    const body = {
+      code: "LM-DUP123",
+      customerName: "Khách Trùng",
+      phone: "0901234567",
+      email: "k@example.com",
+      address: "123 Đường K",
+      province: "Hà Nội",
+      district: "Ba Đình",
+      paymentMethod: "cod",
+      subtotal: 100000,
+      shippingFee: 20000,
+      discount: 0,
+      total: 120000,
+      items: [
+        {
+          productId: "test-prod",
+          variantId: "v-1",
+          productName: "Áo test",
+          variantLabel: "M",
+          price: 100000,
+          quantity: 1,
+          lineTotal: 100000,
+        },
+      ],
+    };
+
+    const req = new Request("http://localhost/api/orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    const res = await worker.fetch(req, env);
+    expect(res.status).toBe(409);
+    const data = (await res.json()) as { success: boolean; codeConflict: boolean };
+    expect(data.success).toBe(false);
+    expect(data.codeConflict).toBe(true);
+  });
+
+  it("GET /api/site-settings lọc bỏ admin_credentials để không rò rỉ ra public", async () => {
+    const { db } = createMockDb();
+    const env: Env = { DB: db };
+
+    const req = new Request("http://localhost/api/site-settings", { method: "GET" });
+    const res = await worker.fetch(req, env);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { success: boolean; settings: Record<string, unknown> };
+    expect(data.success).toBe(true);
+    expect(data.settings.theme).toBe("dark");
+    expect(data.settings.admin_credentials).toBeUndefined();
+  });
+
+  it("POST /api/site-settings cấm ghi đè admin_credentials trả về 403", async () => {
+    const { db } = createMockDb();
+    const env: Env = { DB: db };
+
+    const req = new Request("http://localhost/api/site-settings", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer test-admin-token",
+      },
+      body: JSON.stringify({ key: "admin_credentials", value: { hacked: true } }),
+    });
+
+    const res = await worker.fetch(req, env);
+    expect(res.status).toBe(403);
+    const data = (await res.json()) as { success: boolean; error: string };
+    expect(data.success).toBe(false);
+    expect(data.error).toContain("Không được sửa khóa quản trị");
+  });
+
+  it("POST /api/admin/login khóa tạm thời 429 sau 5 lần nhập sai mật khẩu liên tiếp", async () => {
+    const { db } = createMockDb();
+    const env: Env = { DB: db };
+
+    // Thử 5 lần sai
+    for (let i = 0; i < 5; i++) {
+      const badReq = new Request("http://localhost/api/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "CF-Connecting-IP": "10.0.0.99" },
+        body: JSON.stringify({ username: "admin", password: `wrong_${i}` }),
+      });
+      const badRes = await worker.fetch(badReq, env);
+      expect(badRes.status).toBe(401);
+    }
+
+    // Lần thứ 6 bị khóa 429
+    const lockReq = new Request("http://localhost/api/admin/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "CF-Connecting-IP": "10.0.0.99" },
+      body: JSON.stringify({ username: "admin", password: "admin123" }),
+    });
+    const lockRes = await worker.fetch(lockReq, env);
+    expect(lockRes.status).toBe(429);
+    const data = (await lockRes.json()) as { success: boolean; error: string };
+    expect(data.success).toBe(false);
+    expect(data.error).toContain("khóa tạm thời");
+  });
+
+  it("POST /api/orders từ chối khi client truyền discount > 0 (chống gian lận giảm giá)", async () => {
+    const { db } = createMockDb();
+    const env: Env = { DB: db };
+
+    const body = {
+      code: "LM-DSC001",
+      customerName: "Khách Gian Lận",
+      phone: "0901234567",
+      email: "gianlan@example.com",
+      address: "123 Đường ABC",
+      province: "Hà Nội",
+      district: "Ba Đình",
+      paymentMethod: "cod",
+      subtotal: 389000,
+      shippingFee: 20000,
+      discount: 100000, // Tự ý giảm giá 100k
+      total: 309000,
+      items: [
+        {
+          productId: "p1",
+          variantId: "v-p1-m",
+          productName: "Áo sơ mi họa tiết Hawaii",
+          variantLabel: "M",
+          price: 389000,
+          quantity: 1,
+          lineTotal: 389000,
+        },
+      ],
+    };
+
+    const req = new Request("http://localhost/api/orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    const res = await worker.fetch(req, env);
+    expect(res.status).toBe(400);
+    const data = (await res.json()) as { success: boolean; error: string };
+    expect(data.success).toBe(false);
+    expect(data.error).toContain("giảm giá");
+  });
+
+  it("POST /api/orders từ chối khi số lượng mặt hàng vượt quá 30 items", async () => {
+    const { db } = createMockDb();
+    const env: Env = { DB: db };
+
+    const items = Array.from({ length: 31 }, (_, i) => ({
+      productId: "p1",
+      variantId: `v-${i}`,
+      productName: `Sản phẩm ${i}`,
+      variantLabel: "Standard",
+      price: 389000,
+      quantity: 1,
+      lineTotal: 389000,
+    }));
+
+    const body = {
+      code: "LM-MAX030",
+      customerName: "Khách Quá Tải",
+      phone: "0901234567",
+      email: "over@example.com",
+      address: "123 Đường ABC",
+      province: "Hà Nội",
+      district: "Ba Đình",
+      paymentMethod: "cod",
+      subtotal: 389000 * 31,
+      shippingFee: 0,
+      discount: 0,
+      total: 389000 * 31,
+      items,
+    };
+
+    const req = new Request("http://localhost/api/orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    const res = await worker.fetch(req, env);
+    expect(res.status).toBe(400);
+    const data = (await res.json()) as { success: boolean; error: string };
+    expect(data.success).toBe(false);
+    expect(data.error).toContain("30 mặt hàng");
   });
 });

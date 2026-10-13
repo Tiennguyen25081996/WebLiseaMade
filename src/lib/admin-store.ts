@@ -15,6 +15,7 @@ import {
   saveChatbotConfig,
   resetChatbotConfig,
 } from "@/lib/chatbot-service";
+import { getAdminHeaders } from "@/lib/admin-auth";
 
 export interface DiscountEvent {
   id: string;
@@ -147,7 +148,10 @@ async function syncSettingToRemote(key: string, value: unknown): Promise<void> {
   try {
     await fetch("/api/site-settings", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...getAdminHeaders(),
+      },
       body: JSON.stringify({ key, value }),
     });
   } catch {

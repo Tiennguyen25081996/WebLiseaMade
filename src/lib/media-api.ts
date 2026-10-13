@@ -1,3 +1,5 @@
+import { getAdminHeaders } from "@/lib/admin-auth";
+
 export interface MediaImage {
   id: string;
   filename: string;
@@ -146,7 +148,10 @@ export async function setGoogleDriveWebhookUrl(url: string): Promise<void> {
   try {
     await fetch("/api/site-settings", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...getAdminHeaders(),
+      },
       body: JSON.stringify({ key: "gdrive_webhook_url", value: trimmed }),
     });
   } catch {
@@ -171,18 +176,30 @@ export function getOfflineImages(): MediaImage[] {
 
 function saveOfflineImage(img: MediaImage): void {
   if (typeof window === "undefined") return;
-  const current = getOfflineImages();
-  const next = [img, ...current.filter((item) => item.id !== img.id)].slice(0, 100);
-  localStorage.setItem(STORAGE_KEY_OFFLINE_IMAGES, JSON.stringify(next));
+  // Không lưu chuỗi base64 quá lớn (>500KB) vào localStorage để tránh QuotaExceededError
+  if (img.url.startsWith("data:") && img.url.length > 500 * 1024) {
+    return;
+  }
+  try {
+    const current = getOfflineImages();
+    const next = [img, ...current.filter((item) => item.id !== img.id)].slice(0, 50);
+    localStorage.setItem(STORAGE_KEY_OFFLINE_IMAGES, JSON.stringify(next));
+  } catch {
+    // Tránh sập app khi dung lượng localStorage đầy
+  }
 }
 
 function removeOfflineImage(id: string): void {
   if (typeof window === "undefined") return;
-  const current = getOfflineImages();
-  localStorage.setItem(
-    STORAGE_KEY_OFFLINE_IMAGES,
-    JSON.stringify(current.filter((item) => item.id !== id)),
-  );
+  try {
+    const current = getOfflineImages();
+    localStorage.setItem(
+      STORAGE_KEY_OFFLINE_IMAGES,
+      JSON.stringify(current.filter((item) => item.id !== id)),
+    );
+  } catch {
+    // Bỏ qua lỗi quota
+  }
 }
 
 export function fileToBase64(file: File): Promise<string> {
@@ -215,7 +232,10 @@ export async function saveExternalMediaImage(data: {
   try {
     const res = await fetch("/api/upload", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...getAdminHeaders(),
+      },
       body: JSON.stringify(payload),
     });
 
@@ -386,6 +406,7 @@ export async function uploadMediaImage(file: File): Promise<{
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...getAdminHeaders(),
       },
       body: JSON.stringify({
         file: base64Data,
@@ -523,6 +544,9 @@ export async function deleteMediaImage(id: string): Promise<boolean> {
   try {
     const res = await fetch(`/api/images/${encodeURIComponent(id)}`, {
       method: "DELETE",
+      headers: {
+        ...getAdminHeaders(),
+      },
     });
     if (res.ok) {
       const data = await res.json().catch(() => null);
@@ -611,7 +635,10 @@ export async function syncOfflineImagesToCloudflare(): Promise<{
 
       const res = await fetch("/api/upload", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...getAdminHeaders(),
+        },
         body: JSON.stringify(payload),
       });
 

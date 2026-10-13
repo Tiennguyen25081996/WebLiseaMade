@@ -14,8 +14,8 @@ interface QuantityStepperProps {
 }
 
 /**
- * Tang/giassm so lang them of one cart line.
- * `current - 1` can reach 0 -> `setQuantity` deletes the line (contract §4).
+ * Tăng / giảm số lượng sản phẩm trong dòng giỏ hàng.
+ * `current - 1` về 0 sẽ xóa dòng khỏi giỏ hàng.
  */
 export function QuantityStepper({
   productId,
@@ -23,7 +23,7 @@ export function QuantityStepper({
   current,
   max = 99,
   className = "",
-  ariaLabel = "Thay so lang",
+  ariaLabel = "Thay đổi số lượng",
 }: QuantityStepperProps) {
   const cart = useCart();
   const atMax = current >= max;
@@ -32,13 +32,28 @@ export function QuantityStepper({
     <div
       role="group"
       aria-label={ariaLabel}
-      className={`inline-flex items-center gap-2 ${className}`}
+      className={`inline-flex items-center gap-1.5 border border-sand-300 rounded-hair bg-sand-50/50 p-1 ${className}`}
     >
       <Button
         variant="ghost"
         size="sm"
-        className="border-1 border-ink-900/15 hover:border-ink-900/40"
-        aria-label={atMax ? "Da am so lang cực maximum" : "Them so lang"}
+        className="w-8 h-8 p-0 flex items-center justify-center border-0 hover:bg-sand-200/60 text-ink-900 transition-colors"
+        aria-label={current <= 1 ? "Xóa sản phẩm khỏi giỏ hàng" : "Giảm số lượng"}
+        onClick={() => cart.setQuantity(productId, variantId, current - 1)}
+      >
+        −
+      </Button>
+      <span
+        aria-live="polite"
+        className="min-w-7 px-1 text-center text-sm font-semibold text-ink-900 select-none"
+      >
+        {current}
+      </span>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="w-8 h-8 p-0 flex items-center justify-center border-0 hover:bg-sand-200/60 text-ink-900 transition-colors disabled:opacity-40"
+        aria-label={atMax ? "Đã đạt số lượng tối đa" : "Tăng số lượng"}
         disabled={atMax}
         onClick={() => {
           if (atMax) return;
@@ -46,15 +61,6 @@ export function QuantityStepper({
         }}
       >
         +
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="border-1 border-ink-900/15 hover:border-ink-900/40"
-        aria-label={current <= 1 ? "Rut san phem gio hang" : "Giassm so lang"}
-        onClick={() => cart.setQuantity(productId, variantId, current - 1)}
-      >
-        −
       </Button>
     </div>
   );

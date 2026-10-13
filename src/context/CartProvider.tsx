@@ -83,6 +83,20 @@ export function CartProvider({ children }: { children: ReactNode }) {
     writeRawLines(state.rawLines);
   }, [state.rawLines]);
 
+  // Đồng bộ giỏ hàng thời gian thực giữa các tab trình duyệt
+  useEffect(() => {
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === CART_STORAGE_KEY) {
+        setState((prev) => ({
+          ...prev,
+          rawLines: readRawLines(),
+        }));
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, []);
+
   const value = useMemo<CartContextValue>(() => {
     const { lines, droppedLineIds } = hydrated;
     const visibleDropped = droppedLineIds.filter(

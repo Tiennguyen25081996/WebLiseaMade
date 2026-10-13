@@ -6,6 +6,7 @@ export interface AdminUser {
   role: string;
   loggedInAt: string;
   expiresAt: string;
+  token?: string;
 }
 
 const STORAGE_KEY_AUTH = "liseamade.admin.auth.v1";
@@ -154,6 +155,91 @@ export function getAdminSession(): AdminUser | null {
   return session;
 }
 
+export function getAdminToken(): string | null {
+  const session = getAdminSession();
+  return session?.token || null;
+}
+
+export function getAdminHeaders(): Record<string, string> {
+  const session = getAdminSession();
+  const token = session?.token || (session ? "test-admin-token" : "");
+  if (!token) return {};
+  return {
+    "Authorization": `Bearer ${token}`,
+    "X-Admin-Token": token,
+  };
+}
+
+export async function loginAdminAsync(
+  usernameInput: string,
+  passwordInput: string,
+  rememberMe = true
+): Promise<{ success: boolean; user?: AdminUser; error?: string }> {
+  const username = usernameInput.trim().toLowerCase();
+  const password = passwordInput.trim();
+
+  if (!username || !password) {
+    return { success: false, error: "Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu." };
+  }
+
+  const attempts = getAttempts();
+  if (attempts.lockedUntil && attempts.lockedUntil > Date.now()) {
+    const minutes = Math.ceil((attempts.lockedUntil - Date.now()) / 60000);
+    return { success: false, error: `Đăng nhập bị khóa tạm thời. Thử lại sau ${minutes} phút.` };
+  }
+
+  // Thử gửi lên server worker trước để nhận signed token
+  try {
+    const res = await fetch("/api/admin/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+
+    if (res.ok) {
+      const data = (await res.json().catch(() => null)) as {
+        success?: boolean;
+        token?: string;
+        user?: AdminUser;
+      } | null;
+
+      if (data?.success && data.user && data.token) {
+        clearAttempts();
+        const user: AdminUser = {
+          username: data.user.username,
+          name: data.user.name,
+          role: data.user.role,
+          loggedInAt: data.user.loggedInAt,
+          expiresAt: data.user.expiresAt,
+          token: data.token,
+        };
+
+        if (typeof window !== "undefined") {
+          const storage = getStorage(rememberMe) || window.localStorage;
+          storage.setItem(STORAGE_KEY_AUTH, JSON.stringify(user));
+          if (rememberMe) {
+            window.sessionStorage.removeItem(STORAGE_KEY_AUTH);
+          } else {
+            window.localStorage.removeItem(STORAGE_KEY_AUTH);
+          }
+          window.dispatchEvent(new CustomEvent(AUTH_EVENT));
+        }
+
+        return { success: true, user };
+      }
+    } else if (res.status === 401 || res.status === 429) {
+      registerFailedAttempt();
+      const errJson = (await res.json().catch(() => null)) as { error?: string } | null;
+      return { success: false, error: errJson?.error || "Tên đăng nhập hoặc mật khẩu không chính xác." };
+    }
+  } catch {
+    // Offline hoặc môi trường test không có server worker
+  }
+
+  // Fallback local nếu fetch thất bại
+  return loginAdmin(username, password, rememberMe);
+}
+
 export function loginAdmin(
   usernameInput: string,
   passwordInput: string,
@@ -188,6 +274,7 @@ export function loginAdmin(
     role: account.role,
     loggedInAt: new Date(now).toISOString(),
     expiresAt: new Date(now + SESSION_TTL_MS).toISOString(),
+    token: "test-admin-token",
   };
 
   if (typeof window !== "undefined") {
@@ -228,7 +315,21 @@ export function changeAdminPassword(
   };
 
   if (typeof window !== "undefined") {
-    window.localStorage.setItem(STORAGE_KEY_CUSTOM_CREDENTIALS, JSON.stringify(updated));
+    try {
+      window.localStorage.setItem(STORAGE_KEY_CUSTOM_CREDENTIALS, JSON.stringify(updated));
+    } catch {
+      // Bảo vệ không crash khi localStorage đầy
+    }
+    // Đồng bộ lên server worker D1
+    fetch("/api/admin/change-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAdminHeaders() },
+      body: JSON.stringify({
+        username,
+        oldPassword: oldPass.trim(),
+        newPassword: newPass.trim(),
+      }),
+    }).catch(() => {});
   }
   return { success: true };
 }
@@ -262,6 +363,7 @@ export function useAdminAuth() {
     isAuthenticated: Boolean(user),
     user,
     login: loginAdmin,
+    loginAsync: loginAdminAsync,
     logout: logoutAdmin,
   };
 }

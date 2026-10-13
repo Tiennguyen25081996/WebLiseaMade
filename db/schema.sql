@@ -69,3 +69,10 @@ CREATE TABLE IF NOT EXISTS media_files (
 
 -- Chỉ mục tối ưu sắp xếp ảnh theo thời gian tải lên
 CREATE INDEX IF NOT EXISTS idx_media_files_created ON media_files(created_at DESC);
+
+-- Bảng lưu trữ cấu hình website và trạng thái quản trị
+CREATE TABLE IF NOT EXISTS site_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
