@@ -316,11 +316,7 @@ export default function ProductDetailPage() {
                   className="block snap-start flex-shrink-0"
                 >
                   <article
-                    className="group relative bg-sand-100 rounded-hair overflow-hidden transition-transform duration-700 ease-couture hover:scale-[1.01]"
-                    style={{
-                      width: '362px',
-                      height: '480px',
-                    }}
+                    className="group relative bg-sand-100 rounded-hair overflow-hidden transition-transform duration-700 ease-couture hover:scale-[1.01] w-[80vw] sm:w-[320px] lg:w-[362px]"
                   >
                     <div className="relative aspect-[362/360] overflow-hidden">
                       <ProductImage

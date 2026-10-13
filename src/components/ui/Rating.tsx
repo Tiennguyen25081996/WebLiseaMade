@@ -34,7 +34,7 @@ export function Rating({ value, count, size = "sm", showValue = true }: RatingPr
       )}
       {typeof count === "number" && (
         <span className="text-eyebrow text-ink-500 tabular-nums">
-          {`${count} đánh`}
+          {`${count} đánh giá`}
         </span>
       )}
     </div>

@@ -15,11 +15,17 @@ export default function OrderLookupPage() {
     loadingCode: string | null;
     order: PlacedOrder | null;
     source: "remote" | "local" | "none";
+    isMasked?: boolean;
   }>({
     loadingCode: null,
     order: null,
     source: "none",
+    isMasked: false,
   });
+
+  const [verifyPhoneInput, setVerifyPhoneInput] = useState("");
+  const [verifyPhoneError, setVerifyPhoneError] = useState<string | null>(null);
+  const [isVerifyingPhone, setIsVerifyingPhone] = useState(false);
 
   const activeCode = submittedCode.trim();
 
@@ -27,6 +33,8 @@ export default function OrderLookupPage() {
     if (!activeCode) return;
 
     let isCancelled = false;
+    setVerifyPhoneError(null);
+    setVerifyPhoneInput("");
 
     getOrderByCodeApi(activeCode).then((res) => {
       if (isCancelled) return;
@@ -35,12 +43,14 @@ export default function OrderLookupPage() {
           loadingCode: null,
           order: res.order,
           source: res.source,
+          isMasked: res.isMasked ?? false,
         });
       } else {
         setLookupState({
           loadingCode: null,
           order: null,
           source: "none",
+          isMasked: false,
         });
       }
     });
@@ -49,6 +59,35 @@ export default function OrderLookupPage() {
       isCancelled = true;
     };
   }, [activeCode]);
+
+  const handleVerifyPhone = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const phone = verifyPhoneInput.trim();
+    if (!phone) {
+      setVerifyPhoneError("Vui lòng nhập số điện thoại đặt hàng.");
+      return;
+    }
+    setIsVerifyingPhone(true);
+    setVerifyPhoneError(null);
+
+    try {
+      const res = await getOrderByCodeApi(activeCode, phone);
+      if (res.order && !res.isMasked) {
+        setLookupState({
+          loadingCode: null,
+          order: res.order,
+          source: res.source,
+          isMasked: false,
+        });
+      } else {
+        setVerifyPhoneError("Số điện thoại không khớp với thông tin đơn hàng này.");
+      }
+    } catch {
+      setVerifyPhoneError("Không thể xác minh số điện thoại vào lúc này.");
+    } finally {
+      setIsVerifyingPhone(false);
+    }
+  };
 
   const isLoading = Boolean(activeCode && lookupState.loadingCode === activeCode);
   const order = lookupState.order;
@@ -135,6 +174,47 @@ export default function OrderLookupPage() {
             </p>
           </div>
         </div>
+
+        {lookupState.isMasked && (
+          <div className="mt-4 rounded-hair border border-sand-300 bg-sand-100/90 p-4 animate-fade-in">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold text-ink-900 flex items-center gap-1.5">
+                  <span>🔒</span>
+                  <span>Thông tin cá nhân (địa chỉ, số điện thoại) được bảo vệ tự động</span>
+                </p>
+                <p className="text-2xs text-ink-600 mt-0.5">
+                  Nhập số điện thoại đã dùng khi đặt hàng để mở khóa toàn bộ địa chỉ giao hàng.
+                </p>
+              </div>
+
+              <form onSubmit={handleVerifyPhone} className="flex items-center gap-2">
+                <input
+                  type="tel"
+                  placeholder="0901234567"
+                  value={verifyPhoneInput}
+                  onChange={(e) => setVerifyPhoneInput(e.target.value)}
+                  className="h-9 w-36 sm:w-44 rounded-hair border border-sand-300 bg-white px-2.5 text-xs text-ink-900 focus:outline-none focus:border-ink-900"
+                />
+                <Button
+                  type="submit"
+                  size="sm"
+                  variant="secondary"
+                  disabled={isVerifyingPhone}
+                  className="h-9 text-xs px-3 font-medium whitespace-nowrap"
+                >
+                  {isVerifyingPhone ? "Kiểm tra..." : "Xác thực"}
+                </Button>
+              </form>
+            </div>
+
+            {verifyPhoneError && (
+              <p className="text-2xs font-medium text-coral-700 mt-2">
+                {verifyPhoneError}
+              </p>
+            )}
+          </div>
+        )}
 
         <div className="mt-5"><PlacedOrderCard order={order} /></div>
 

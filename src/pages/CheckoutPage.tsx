@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCart } from "@/context/cart-context";
 import { generateOrderCode, hasErrors, validateCheckout, type CheckoutErrors } from "@/lib/orders";
@@ -90,6 +90,7 @@ export default function CheckoutPage() {
   const [touched, setTouched] = useState<Partial<Record<FieldId, boolean>>>({});
   const [saveFailed, setSaveFailed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
 
   const errors = useMemo(() => validateCheckout(info), [info]);
   const invalid = hasErrors(errors);
@@ -110,7 +111,7 @@ export default function CheckoutPage() {
     }
     setTouched(allTouched);
 
-    if (invalid || isSubmitting) {
+    if (invalid || isSubmitting || isSubmittingRef.current) {
       // Focus trường lỗi đầu tiên theo chuẩn a11y
       for (const field of FIELDS) {
         if (field.errorKey && errors[field.errorKey]) {
@@ -124,32 +125,42 @@ export default function CheckoutPage() {
       return;
     }
     
+    isSubmittingRef.current = true;
     setIsSubmitting(true);
     try {
       const code = generateOrderCode();
+      let activeCode = code;
       const order: PlacedOrder = {
-        code,
+        code: activeCode,
         createdAt: new Date().toISOString(),
         lines: cart.lines,
         totals: cart.totals,
         info,
       };
       
-      const res = await createOrderApi(order);
+      let res = await createOrderApi(order);
+      // Tự động sinh mã mới và thử lại nếu máy chủ báo trùng lặp mã đơn (409 conflict)
+      if (!res.success && res.error && (res.error.includes("trùng lặp") || res.error.includes("codeConflict") || res.error.includes("409"))) {
+        activeCode = generateOrderCode();
+        order.code = activeCode;
+        res = await createOrderApi(order);
+      }
+
       if (!res.success) {
         setSaveFailed(true);
       } else {
         setSaveFailed(false);
         trackCustomerEvent("place_order", {
-          orderCode: code,
+          orderCode: activeCode,
           total: cart.totals.total,
           itemCount: cart.itemCount,
           syncedToRemote: res.syncedToRemote,
         });
         cart.clear();
-        navigate(`/dat-hang-thanh-cong?ma=${code}`);
+        navigate(`/dat-hang-thanh-cong?ma=${activeCode}`);
       }
     } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -268,11 +279,13 @@ export default function CheckoutPage() {
                           <input
                             id={field.id}
                             name={field.id}
-                            type={field.id === "email" ? "email" : "text"}
+                            type={field.id === "email" ? "email" : field.id === "so-dien-thoai" ? "tel" : "text"}
+                            inputMode={field.id === "so-dien-thoai" ? "tel" : undefined}
                             autoComplete={
                               field.id === "ho-ten" ? "name" :
                               field.id === "so-dien-thoai" ? "tel" :
-                              field.id === "email" ? "email" : "off"
+                              field.id === "email" ? "email" :
+                              field.id === "dia-chi" ? "street-address" : "off"
                             }
                             placeholder={field.placeholder}
                             aria-invalid={showError ? "true" : undefined}
@@ -347,11 +360,17 @@ export default function CheckoutPage() {
                 <Button
                   variant="primary"
                   size="lg"
-                  className="w-full sm:w-auto px-6 sm:px-10 h-12 sm:h-14 text-sm sm:text-base font-medium rounded-hair bg-ink-900 text-sand-50 hover:bg-ink-700 active:scale-[0.98] transition-all shadow-2xs text-center"
+                  className="w-full sm:w-auto px-6 sm:px-10 h-12 sm:h-14 text-sm sm:text-base font-medium rounded-hair bg-ink-900 text-sand-50 hover:bg-ink-700 active:scale-[0.98] transition-all shadow-2xs text-center inline-flex items-center justify-center gap-2"
                   disabled={invalid || isSubmitting}
                   aria-label={`Đặt hàng, tổng ${formatVnd(cart.totals.total)}`}
                   onClick={handleCheckout}
                 >
+                  {isSubmitting && (
+                    <svg className="h-4 w-4 animate-spin text-sand-50" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                    </svg>
+                  )}
                   {isSubmitting ? "Đang xử lý..." : `Đặt đơn hàng · ${formatVnd(cart.totals.total)}`}
                 </Button>
                 <Button
@@ -369,16 +388,6 @@ export default function CheckoutPage() {
               <div className="rounded-hair border-1 border-sand-300 bg-sand-100 p-8 shadow-sm">
                 <h2 className="mb-6 text-xl font-semibold text-ink-900">Tóm tắt đơn hàng</h2>
                 <CartSummary totals={cart.totals} itemCount={cart.itemCount} />
-                <div className="mt-8 space-y-3 border-t border-sand-200 pt-6">
-                  <div className="flex justify-between text-sm text-ink-700">
-                    <span>Phí vận chuyển</span>
-                    <span className="font-medium">0 ₫</span>
-                  </div>
-                  <div className="flex justify-between text-lg font-bold text-ink-900">
-                    <span>Tổng cộng</span>
-                    <span className="text-coral-700">{formatVnd(cart.totals.total)}</span>
-                  </div>
-                </div>
               </div>
             </aside>
           </div>

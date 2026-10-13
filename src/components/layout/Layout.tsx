@@ -24,7 +24,7 @@ export function Layout() {
   return (
     <div className="flex min-h-screen flex-col bg-sand-50 text-ink-900">
       <Header />
-      <main className="flex-1 animate-reveal-up container-page">
+      <main className="flex-1 animate-reveal-up">
         <Outlet />
       </main>
       <Footer />

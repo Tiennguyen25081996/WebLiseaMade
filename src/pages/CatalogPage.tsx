@@ -42,8 +42,7 @@ export default function CatalogPage() {
           <div className="rounded-hair bg-sand-100 p-5 border-1 border-sand-200">
             <p className="text-xs font-light text-ink-500 tracking-[0.04em] uppercase">
               <span className="mr-3">✨</span> 
-              Catalog Editorial: All product names and prices are presented as 
-              editorial references — creative mockups for the LiseaMade aesthetic.
+              Ấn phẩm mẫu: Tên và giá sản phẩm được trình bày dưới dạng tham khảo mỹ thuật LiseaMade.
             </p>
           </div>
         )}

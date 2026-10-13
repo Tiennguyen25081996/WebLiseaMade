@@ -14,7 +14,7 @@ interface AdminLoginFormProps {
 }
 
 export function AdminLoginForm({ onSuccess }: AdminLoginFormProps) {
-  const { login } = useAdminAuth();
+  const { loginAsync } = useAdminAuth();
   const [form, setForm] = useState({
     username: "",
     password: "",
@@ -32,7 +32,7 @@ export function AdminLoginForm({ onSuccess }: AdminLoginFormProps) {
     // Đợi 1 frame nhỏ để giao diện kịp chuyển sang trạng thái "Đang xác thực..."
     await new Promise((r) => setTimeout(r, 60));
 
-    const result = login(form.username, form.password, form.rememberMe);
+    const result = await loginAsync(form.username, form.password, form.rememberMe);
     if (!result.success || !result.user) {
       setLoginError(result.error ?? "Đăng nhập thất bại.");
       setIsLoggingIn(false);

@@ -1,6 +1,7 @@
 import type { PlacedOrder, OrderStatus } from "@/types";
 import { findOrderByCode, saveOrder, updateOrderStatus } from "@/lib/orders";
 import { getAdminProducts } from "@/lib/admin-store";
+import { getAdminHeaders } from "@/lib/admin-auth";
 import { PRODUCTS } from "@/data/products";
 
 /**
@@ -69,6 +70,7 @@ export async function createOrderApi(order: PlacedOrder): Promise<{
   success: boolean;
   order: PlacedOrder;
   syncedToRemote: boolean;
+  codeConflict?: boolean;
   error?: string;
 }> {
   // Luôn ghi localStorage trước/song song để đảm bảo client giữ đơn
@@ -96,11 +98,14 @@ export async function createOrderApi(order: PlacedOrder): Promise<{
     }
 
     // Server phản hồi lỗi HTTP
+    const errData = await res.json().catch(() => null);
+    const codeConflict = res.status === 409 || errData?.codeConflict === true;
     return {
-      success: localSaved,
+      success: false,
       order,
       syncedToRemote: false,
-      error: `Server status: ${res.status}`,
+      codeConflict,
+      error: errData?.error || `Server status: ${res.status}`,
     };
   } catch (err: unknown) {
     // Offline hoặc network error
@@ -117,16 +122,21 @@ export async function createOrderApi(order: PlacedOrder): Promise<{
  * Tra cứu đơn hàng theo mã qua GET /api/orders/:code.
  * Nếu không tìm thấy hoặc offline thì tìm trong localStorage.
  */
-export async function getOrderByCodeApi(code: string): Promise<{
+export async function getOrderByCodeApi(
+  code: string,
+  phone?: string,
+): Promise<{
   order?: PlacedOrder;
   source: "remote" | "local" | "none";
   error?: string;
+  isMasked?: boolean;
 }> {
   const cleanCode = code.trim().toUpperCase();
   const localOrder = findOrderByCode(cleanCode);
 
   try {
-    const res = await fetch(`/api/orders/${encodeURIComponent(cleanCode)}`);
+    const query = phone ? `?phone=${encodeURIComponent(phone.trim())}` : "";
+    const res = await fetch(`/api/orders/${encodeURIComponent(cleanCode)}${query}`);
     if (res.ok) {
       const data = await res.json().catch(() => null);
       if (data && data.success && data.order) {
@@ -142,12 +152,12 @@ export async function getOrderByCodeApi(code: string): Promise<{
           return "pending";
         };
 
-        // Ưu tiên trạng thái mới nhất giữa local và remote (tránh trường hợp remote trả về 'pending' cũ)
+        // Ưu tiên trạng thái đã tiến triển từ remote, nếu remote còn 'pending' thì dùng localOrder đã cập nhật
         const rawStatusNormalized = normalizeStatus(raw.status);
         const resolvedStatus: OrderStatus =
-          localOrder?.status && localOrder.status !== "pending"
-            ? localOrder.status
-            : rawStatusNormalized;
+          rawStatusNormalized !== "pending"
+            ? rawStatusNormalized
+            : (localOrder?.status || rawStatusNormalized);
 
         const resolvedTrackingCode =
           localOrder?.trackingCode || raw.tracking_code || raw.trackingCode || undefined;
@@ -232,6 +242,7 @@ export async function getOrderByCodeApi(code: string): Promise<{
         return {
           order: remoteOrder,
           source: "remote",
+          isMasked: Boolean(raw.is_masked),
         };
       }
     }
@@ -244,6 +255,7 @@ export async function getOrderByCodeApi(code: string): Promise<{
     return {
       order: localOrder,
       source: "local",
+      isMasked: false,
     };
   }
 
@@ -267,7 +279,10 @@ export async function updateOrderStatusApi(
   try {
     const res = await fetch(`/api/orders/${encodeURIComponent(code)}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...getAdminHeaders(),
+      },
       body: JSON.stringify({ status: newStatus }),
     });
     return res.ok;
